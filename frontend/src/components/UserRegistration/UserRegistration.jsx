@@ -1,4 +1,3 @@
-// UserRegistration.jsx
 import React, { useState } from "react";
 import axios from "axios";
 import { motion } from "framer-motion";
@@ -16,6 +15,7 @@ const UserRegistration = ({ setIsAuthenticated }) => {
     first_name: "",
     last_name: "",
     role: "",
+    secret_code: "", // New field for secret code
   });
 
   const [message, setMessage] = useState("");
@@ -28,44 +28,52 @@ const UserRegistration = ({ setIsAuthenticated }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     // Validate passwords match
     if (formData.password !== formData.password2) {
       setMessageType("error");
       setMessage("Passwords do not match!");
       return;
     }
-    
+
+    // Validate secret code for MFI employees
+    if (formData.role === "MFI_EMPLOYEE" && !formData.secret_code) {
+      setMessageType("error");
+      setMessage("Secret code is required for MFI employees!");
+      return;
+    }
+
     setIsLoading(true);
-    
+
     try {
-      // Create payload without password2 to send to backend
       const payload = {
         username: formData.username,
         email: formData.email,
         password: formData.password,
         first_name: formData.first_name,
         last_name: formData.last_name,
-        role: formData.role
+        role: formData.role,
+        ...(formData.role === "MFI_EMPLOYEE" && {
+          mfi: formData.secret_code,
+        }),
       };
-      
+
       console.log("Sending registration data:", payload);
-      
+
       const response = await axios.post(
         "http://localhost:8000/api/users/register/",
         payload,
         {
           headers: {
-            'Content-Type': 'application/json',
-          }
+            "Content-Type": "application/json",
+          },
         }
       );
-      
+
       console.log("Registration response:", response);
-      
+
       setMessageType("success");
       setMessage("Registration successful!");
-
       setIsAuthenticated(true);
 
       // Clear form
@@ -77,12 +85,12 @@ const UserRegistration = ({ setIsAuthenticated }) => {
         first_name: "",
         last_name: "",
         role: "",
+        secret_code: "",
       });
 
       navigate("/userdashboard");
     } catch (error) {
       console.error("Registration error:", error);
-      
       setMessageType("error");
       setMessage(
         "Registration failed: " +
@@ -144,6 +152,7 @@ const UserRegistration = ({ setIsAuthenticated }) => {
                 />
               </motion.div>
             </div>
+
             <div className="form-group">
               <motion.div
                 className="input-container"
@@ -152,23 +161,52 @@ const UserRegistration = ({ setIsAuthenticated }) => {
                 transition={{ delay: 0.3, duration: 0.5 }}
               >
                 <label>Role</label>
-                <input
-                  type="text"
+                <select
                   name="role"
                   value={formData.role}
                   onChange={handleChange}
                   required
-                  placeholder="Choose a Role"
-                />
+                >
+                  <option value="">Select a role</option>
+                  <option value="BORROWER">Borrower</option>
+                  <option value="MFI_EMPLOYEE">MFI Employee</option>
+                </select>
               </motion.div>
             </div>
+
+            {/* Conditional rendering of secret code field */}
+            {formData.role === "MFI_EMPLOYEE" && (
+              <motion.div
+                className="form-group"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                transition={{ duration: 0.3 }}
+              >
+                <motion.div
+                  className="input-container"
+                  initial={{ x: -20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: 0.4, duration: 0.5 }}
+                >
+                  <label>Secret Code</label>
+                  <input
+                    type="password"
+                    name="secret_code"
+                    value={formData.secret_code}
+                    onChange={handleChange}
+                    required
+                    placeholder="Enter your secret code"
+                  />
+                </motion.div>
+              </motion.div>
+            )}
 
             <div className="form-group">
               <motion.div
                 className="input-container"
                 initial={{ x: -20, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
-                transition={{ delay: 0.4, duration: 0.5 }}
+                transition={{ delay: 0.5, duration: 0.5 }}
               >
                 <label>Email</label>
                 <input
@@ -187,7 +225,7 @@ const UserRegistration = ({ setIsAuthenticated }) => {
                 className="input-container"
                 initial={{ x: -20, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
-                transition={{ delay: 0.5, duration: 0.5 }}
+                transition={{ delay: 0.6, duration: 0.5 }}
               >
                 <label>Password</label>
                 <input
@@ -215,7 +253,7 @@ const UserRegistration = ({ setIsAuthenticated }) => {
                 className="input-container half"
                 initial={{ x: -20, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
-                transition={{ delay: 0.6, duration: 0.5 }}
+                transition={{ delay: 0.7, duration: 0.5 }}
               >
                 <label>First Name</label>
                 <input
@@ -231,7 +269,7 @@ const UserRegistration = ({ setIsAuthenticated }) => {
                 className="input-container half"
                 initial={{ x: -20, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
-                transition={{ delay: 0.7, duration: 0.5 }}
+                transition={{ delay: 0.8, duration: 0.5 }}
               >
                 <label>Last Name</label>
                 <input
@@ -252,7 +290,7 @@ const UserRegistration = ({ setIsAuthenticated }) => {
               whileTap={{ scale: 0.95 }}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 0.8, duration: 0.5 }}
+              transition={{ delay: 0.9, duration: 0.5 }}
             >
               {isLoading ? <div className="spinner"></div> : "Create Account"}
             </motion.button>
@@ -261,7 +299,7 @@ const UserRegistration = ({ setIsAuthenticated }) => {
               className="login-link"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 0.9, duration: 0.5 }}
+              transition={{ delay: 1.0, duration: 0.5 }}
             >
               Already have an account? <a href="/login">Sign in</a>
             </motion.p>

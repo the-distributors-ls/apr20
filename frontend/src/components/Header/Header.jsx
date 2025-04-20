@@ -10,10 +10,10 @@ const Header = ({ userData, showUserMenu, setShowUserMenu }) => {
         className="user-profile"
         onClick={() => setShowUserMenu(!showUserMenu)}
       >
-        <div className="avatar">{userData.name.charAt(0)}</div>
+        <div className="avatar">{/*userData.name.charAt(0)*/}</div>
         <div className="user-info">
-          <p>{userData.name}</p>
-          <span>{userData.mfi}</span>
+          <p>{/*userData.name*/}</p>
+          <span>{/*userData.mfi*/}</span>
         </div>
         <ChevronDown size={16} />
       </div>

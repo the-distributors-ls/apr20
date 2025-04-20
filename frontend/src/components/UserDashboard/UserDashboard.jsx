@@ -6,6 +6,7 @@ import StatsGrid from "../StatsGrid/StatsGrid";
 import LoanTable from "../LoanTable/LoanTable";
 import LoanApplicationForm from "../LoanApplicationForm/LoanApplicationForm";
 import "./UserDashboard.css";
+import UserProfile from "../UserProfile/UserProfile";
 
 const UserDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
@@ -30,31 +31,33 @@ const UserDashboard = () => {
     monthly_income: "",
   });
 
+  // Safely initialize userData with default mfiMemberships
+  const [userData, setUserData] = useState(() => {
+    try {
+      const storedUser = sessionStorage.getItem("user");
+      return storedUser
+        ? {
+            ...JSON.parse(storedUser),
+            mfiMemberships: JSON.parse(storedUser)?.mfiMemberships || [],
+          }
+        : {
+            name: "",
+            mfi: "",
+            loans: [],
+            mfiMemberships: [],
+          };
+    } catch (err) {
+      console.error("Error parsing user data:", err);
+      return {
+        name: "",
+        mfi: "",
+        loans: [],
+        mfiMemberships: [],
+      };
+    }
+  });
+
   const interestRates = { 6: 12.5, 12: 14.0, 18: 15.5, 24: 17.0 };
-  const userData = {
-    name: "Thabo Molefi",
-    mfi: "Lesotho Rural MFI",
-    loans: [
-      {
-        id: "L-7890",
-        amount: 5000,
-        status: "Active",
-        nextPayment: "2024-04-15",
-        progress: 65,
-      },
-      {
-        id: "L-7821",
-        amount: 3000,
-        status: "Completed",
-        nextPayment: null,
-        progress: 100,
-      },
-    ],
-    mfiMemberships: [
-      { name: "Lesotho Rural MFI", joined: "2022-01-15", active: true },
-      { name: "Maseru Urban Credit", joined: "2023-06-01", active: false },
-    ],
-  };
 
   useEffect(() => {
     const fetchMfis = async () => {
@@ -72,9 +75,44 @@ const UserDashboard = () => {
       }
     };
 
+    const fetchUserLoans = async () => {
+      try {
+        const token =
+          sessionStorage.getItem("authToken") ||
+          localStorage.getItem("authToken");
+        const response = await fetch("http://127.0.0.1:8000/api/loans/", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch user loans");
+        }
+
+        const loans = await response.json();
+        setUserData((prev) => ({
+          ...prev,
+          loans: loans.map((loan) => ({
+            id: loan.id,
+            amount: loan.amount,
+            status: loan.status,
+            nextPayment: loan.next_payment_date,
+            progress: loan.payment_progress,
+          })),
+          // Ensure mfiMemberships exists
+          mfiMemberships: prev.mfiMemberships || [],
+        }));
+      } catch (err) {
+        console.error("Error fetching loans:", err);
+      }
+    };
+
     if (activeTab === "mfi") {
       fetchMfis();
     }
+
+    fetchUserLoans();
   }, [activeTab]);
 
   const calculateMonthlyPayment = () => {
@@ -87,7 +125,7 @@ const UserDashboard = () => {
     setSelectedMfi(mfi);
     setBorrowerData({
       ...borrowerData,
-      full_name: userData.name, // Pre-fill name from user data
+      full_name: userData?.full_name || userData?.name || "",
     });
     setShowJoinForm(true);
   };
@@ -103,16 +141,21 @@ const UserDashboard = () => {
   const handleJoinSubmit = async (e) => {
     e.preventDefault();
     try {
-      setJoinStatus(prev => ({ ...prev, [selectedMfi.id]: "joining" }));
-      
+      setJoinStatus((prev) => ({ ...prev, [selectedMfi.id]: "joining" }));
+
+      const token =
+        sessionStorage.getItem("authToken") ||
+        localStorage.getItem("authToken");
+
       const response = await fetch("http://127.0.0.1:8000/api/borrowers/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           ...borrowerData,
-          mfi: selectedMfi.id
+          mfi: selectedMfi.id,
         }),
       });
 
@@ -120,18 +163,23 @@ const UserDashboard = () => {
         throw new Error("Failed to join MFI");
       }
 
-      setJoinStatus(prev => ({ ...prev, [selectedMfi.id]: "success" }));
+      setJoinStatus((prev) => ({ ...prev, [selectedMfi.id]: "success" }));
       setShowJoinForm(false);
-      
-      // Update user's MFI memberships
-      userData.mfiMemberships.push({
-        name: selectedMfi.name,
-        joined: new Date().toISOString().split('T')[0],
-        active: true
-      });
-      
+
+      // Safely update memberships
+      setUserData((prev) => ({
+        ...prev,
+        mfiMemberships: [
+          ...(prev.mfiMemberships || []),
+          {
+            name: selectedMfi.name,
+            joined: new Date().toISOString().split("T")[0],
+            active: true,
+          },
+        ],
+      }));
     } catch (err) {
-      setJoinStatus(prev => ({ ...prev, [selectedMfi.id]: "error" }));
+      setJoinStatus((prev) => ({ ...prev, [selectedMfi.id]: "error" }));
       console.error("Error joining MFI:", err);
     }
   };
@@ -145,8 +193,10 @@ const UserDashboard = () => {
   };
 
   const renderJoinButton = (mfi) => {
+    // Safely handle missing mfiMemberships
+    const memberships = userData?.mfiMemberships || [];
+    const isMember = memberships.some((m) => m?.name === mfi.name);
     const status = joinStatus[mfi.id];
-    const isMember = userData.mfiMemberships.some(m => m.name === mfi.name);
 
     if (isMember) {
       return (
@@ -171,7 +221,7 @@ const UserDashboard = () => {
         );
       case "error":
         return (
-          <button 
+          <button
             className="btn btn-error"
             onClick={() => handleJoinClick(mfi)}
           >
@@ -180,7 +230,7 @@ const UserDashboard = () => {
         );
       default:
         return (
-          <button 
+          <button
             className="btn btn-secondary"
             onClick={() => handleJoinClick(mfi)}
           >
@@ -213,20 +263,20 @@ const UserDashboard = () => {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
               <h2>Overview Content</h2>
               <StatsGrid
-                loans={userData.loans}
-                mfiMemberships={userData.mfiMemberships}
+                loans={userData?.loans || []}
+                mfiMemberships={userData?.mfiMemberships || []}
               />
             </motion.div>
           )}
           {activeTab === "loans" && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              <LoanTable loans={userData.loans} />
+              <LoanTable loans={userData?.loans || []} />
             </motion.div>
           )}
           {activeTab === "apply" && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
               <LoanApplicationForm
-                userData={userData}
+                userData={userData || {}}
                 loanAmount={loanAmount}
                 setLoanAmount={setLoanAmount}
                 selectedTerm={selectedTerm}
@@ -236,6 +286,13 @@ const UserDashboard = () => {
               />
             </motion.div>
           )}
+
+          {activeTab === "profile" && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+              <UserProfile userData={userData} />
+            </motion.div>
+          )}
+
           {activeTab === "mfi" && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
               <div className="mfi-management">
@@ -350,7 +407,9 @@ const UserDashboard = () => {
                                 required
                               >
                                 <option value="employed">Employed</option>
-                                <option value="self_employed">Self Employed</option>
+                                <option value="self_employed">
+                                  Self Employed
+                                </option>
                                 <option value="unemployed">Unemployed</option>
                               </select>
                             </div>

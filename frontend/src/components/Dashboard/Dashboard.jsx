@@ -24,6 +24,8 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
+
+import BorrowerManagement from "../../components/BorrowerManagement/BorrowerManagemnt";
 import "./Dashboard.css";
 
 const Dashboard = () => {
@@ -1068,20 +1070,7 @@ const Dashboard = () => {
               animate={{ opacity: 1 }}
               transition={{ duration: 0.3 }}
             >
-              <div className="page-title">
-                <h2>Borrower Management</h2>
-                <p>View and manage all borrower profiles and histories.</p>
-              </div>
-
-              <div className="borrowers-placeholder">
-                <div className="placeholder-icon">
-                  <Users size={48} />
-                </div>
-                <h3>Borrower Management Coming Soon</h3>
-                <p>
-                  This feature is currently under development. Check back later.
-                </p>
-              </div>
+              <BorrowerManagement />
             </motion.div>
           )}
 

@@ -53,26 +53,6 @@ const LoanApplicationForm = ({
     <div className="loan-application-form">
       <section className="form-section">
         <h3>
-          <User size={18} /> Personal Information
-        </h3>
-        <div className="form-grid">
-          <div className="form-group">
-            <label>Full Legal Name</label>
-            <input type="text" value={userData?.name || ""} readOnly />
-          </div>
-          <div className="form-group">
-            <label>National ID Number</label>
-            <input type="text" pattern="[0-9]{10}" required />
-          </div>
-          <div className="form-group">
-            <label>Contact Number</label>
-            <input type="tel" pattern="[0-9]{10}" required />
-          </div>
-        </div>
-      </section>
-
-      <section className="form-section">
-        <h3>
           <Handshake size={18} /> Loan Particulars
         </h3>
         <div className="form-grid">

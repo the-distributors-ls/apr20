@@ -20,7 +20,11 @@ const SideBar = ({
   return (
     <aside className="dashboard-sidebar">
       <div className="sidebar-header">
-        <h1 className="logo">Letsema</h1>
+        {sidebarCollapsed ? (
+          <div className="logo-icon">L</div>
+        ) : (
+          <h1 className="logo">Letsema</h1>
+        )}
         <button
           className="collapse-btn"
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
