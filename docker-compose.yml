@@ -1,18 +1,45 @@
 services:
-  web:
-    build: .
+  distributed:
+    build: ./distributed
     restart: always
     ports:
       - "8000:8000"
     volumes:
-      - .:/code
+      - ./distributed:/code
       - static_volume:/code/staticfiles
       - media_volume:/code/mediafiles
     env_file:
       - .env
     environment:
       - PYTHONPATH=/code
+    networks:
+      - app-network
+
+  frontend:
+    build: ./frontend
+    restart: always
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    env_file:
+      - .env
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000/api
+      - CHOKIDAR_USEPOLLING=true
+      - WDS_SOCKET_PORT=0
+    stdin_open: true
+    tty: true
+    depends_on:
+      - distributed
+    networks:
+      - app-network
 
 volumes:
   static_volume:
   media_volume:
+
+networks:
+  app-network:
+    driver: bridge
