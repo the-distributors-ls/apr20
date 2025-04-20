@@ -27,6 +27,12 @@ class LoanApplication(models.Model):
     class Meta:
         ordering = ['-application_date']
     
+    def save(self, *args, **kwargs):
+        # Ensure MFI cluster is properly set
+        if not self.mfi.cluster_name:
+            raise ValueError("MFI must have a cluster_name assigned")
+        super().save(*args, **kwargs)
+    
     def __str__(self):
         return f"Loan #{self.id} - {self.borrower.get_full_name()} - {self.get_status_display()}"
 

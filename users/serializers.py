@@ -6,7 +6,7 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 'role', 'mfi']
-        read_only_fields = ['id', 'role', 'mfi']
+        read_only_fields = ['id']
 
 class BorrowerProfileSerializer(serializers.ModelSerializer):
     user = UserSerializer()

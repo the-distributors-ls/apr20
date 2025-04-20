@@ -13,6 +13,8 @@ from django.utils import timezone
 from django.conf import settings
 import logging
 from rest_framework.exceptions import PermissionDenied
+from django.db import connection
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -93,33 +95,44 @@ class LoanDecisionView(generics.UpdateAPIView):
         return Response(serializer.data)
     
     def _create_loan_in_mfi_system(self, loan):
-        """Create the loan in the respective MFI's system via API or FDW"""
+        """Create the loan in the respective MFI's database via FDW"""
         try:
-            # For simplicity, we'll assume MFIs expose a REST API
-            if loan.mfi.api_endpoint:
-                payload = {
-                    'borrower_id': loan.borrower.borrower_profile.national_id,
-                    'amount': str(loan.amount),
-                    'term_months': loan.term_months,
-                    'interest_rate': str(loan.interest_rate),
-                    'purpose': loan.purpose,
-                    'letsema_loan_id': loan.id
-                }
-                
-                response = requests.post(
-                    f"{loan.mfi.api_endpoint}/loans",
-                    json=payload,
-                    headers={'Authorization': f"Bearer {settings.MFI_API_KEY}"}
-                )
-                response.raise_for_status()
-                
-                # Update with external loan ID
-                loan.external_loan_id = response.json().get('loan_id')
-                loan.save()
+            if loan.mfi.cluster_name == 'mfi_a':  # Match your cluster name exactly
+                with connection.cursor() as cursor:
+                    # Insert into MFI's loans table via FDW
+                    cursor.execute(f"""
+                        INSERT INTO mfi_a.loans (
+                            borrower_id, amount, interest_rate, 
+                            status, purpose, application_date,
+                            approval_date, term_months, external_reference
+                        )
+                        VALUES (
+                            %s, %s, %s, 
+                            %s, %s, %s,
+                            %s, %s, %s
+                        )
+                        RETURNING id
+                    """, [
+                        loan.borrower.borrower_profile.national_id,  # Assuming you store MFI borrower ID
+                        float(loan.amount),
+                        float(loan.interest_rate),
+                        'approved',  # Initial status in MFI system
+                        loan.purpose,
+                        loan.application_date,
+                        timezone.now(),
+                        loan.term_months,
+                        f"LETSEMA-{loan.id}"  # External reference back to your system
+                    ])
+                    
+                    # Get the inserted loan ID from MFI system
+                    mfi_loan_id = cursor.fetchone()[0]
+                    loan.external_loan_id = mfi_loan_id
+                    loan.save()
+                    
         except Exception as e:
-            # Log error and handle appropriately
             logger.error(f"Failed to create loan in MFI system: {str(e)}")
             raise
+
 
 class LoanStatusUpdatesView(generics.ListAPIView):
     serializer_class = LoanStatusUpdateSerializer
@@ -137,3 +150,28 @@ class LoanStatusUpdatesView(generics.ListAPIView):
             raise PermissionDenied()
         
         return LoanStatusUpdate.objects.filter(loan_id=loan_id)
+    
+# views.py
+class MFILoansView(generics.ListAPIView):
+    """View loans in MFI systems via FDW"""
+    permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
+    
+    def get(self, request, *args, **kwargs):
+        cluster = kwargs.get('cluster', 'mfi_a')
+        
+        if cluster not in ['mfi_a', 'mfi_b']:
+            return Response({"error": "Invalid cluster"}, status=400)
+            
+        with connection.cursor() as cursor:
+            cursor.execute(f"""
+                SELECT l.id, b.name, l.amount, l.status, l.application_date
+                FROM {cluster}.loans l
+                JOIN {cluster}.borrowers b ON l.borrower_id = b.id
+                ORDER BY l.application_date DESC
+                LIMIT 100
+            """)
+            
+            columns = [col[0] for col in cursor.description]
+            results = [dict(zip(columns, row)) for row in cursor.fetchall()]
+            
+        return Response(results)
