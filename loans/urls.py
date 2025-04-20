@@ -3,7 +3,8 @@ from .views import (
     LoanApplicationListCreateView,
     LoanApplicationDetailView,
     LoanDecisionView,
-    LoanStatusUpdatesView
+    LoanStatusUpdatesView,
+    MFILoansView,
 )
 
 urlpatterns = [
@@ -11,4 +12,5 @@ urlpatterns = [
     path('<int:pk>/', LoanApplicationDetailView.as_view(), name='loan-detail'),
     path('<int:pk>/decision/', LoanDecisionView.as_view(), name='loan-decision'),
     path('<int:loan_id>/status-updates/', LoanStatusUpdatesView.as_view(), name='loan-status-updates'),
+    path('mfi-loans/<str:cluster>/', MFILoansView.as_view(), name='mfi-loans'),
 ]
