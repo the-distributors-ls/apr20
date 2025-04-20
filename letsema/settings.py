@@ -119,12 +119,14 @@ INSTALLED_APPS = [
     'loans.apps.LoansConfig',
     'mfi.apps.MfiConfig',
     'mongo_credit.apps.MongoCreditConfig',
+    'corsheaders',
 ]
 
 # =================
 # MIDDLEWARE
 # =================
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware', 
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -132,6 +134,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    
 ]
 
 # ================
@@ -244,3 +247,35 @@ required_db_vars = [
 missing_vars = [var for var in required_db_vars if not os.getenv(var)]
 if missing_vars:
     sys.exit(f"Missing required database environment variables: {', '.join(missing_vars)}")
+
+
+# CORS settings
+CORS_ALLOW_ALL_ORIGINS = True  # For development only
+
+# For production, specify allowed origins:
+# CORS_ALLOWED_ORIGINS = [
+#     "http://localhost:5173",
+#     "https://yourdomain.com",
+# ]
+
+# Additional CORS settings if needed
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
