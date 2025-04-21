@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from users.views import CustomTokenObtainPairView 
 
 from django.http import HttpResponse
 
@@ -13,7 +14,7 @@ urlpatterns = [
     path('api/auth/', include('rest_framework.urls', namespace='rest_framework')),
     path('api/auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    
+    path('api/token/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/users/', include('users.urls')),
     path('api/mfi/', include('mfi.urls')),
     path('api/loans/', include('loans.urls')),
