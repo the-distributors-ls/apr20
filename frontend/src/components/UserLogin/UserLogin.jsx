@@ -52,10 +52,10 @@ const UserLogin = () => {
   const redirectBasedOnUserRole = (user) => {
     switch(user.role) {
       case 'BORROWER':
-        navigate('/borrower-dashboard');
+        navigate('/userdashboard');
         break;
       case 'MFI_EMPLOYEE':
-        navigate('/mfi-dashboard');
+        navigate('/dashboard');
         break;
       case 'ADMIN':
         navigate('/admin-dashboard');
@@ -76,7 +76,7 @@ const UserLogin = () => {
     try {
       // Get JWT token
       const response = await axios.post(
-        `${API_BASE_URL}/auth/token/`,
+        `${API_BASE_URL}/users/token/`,
         formData
       );
   

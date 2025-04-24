@@ -36,7 +36,7 @@ class UserRegistrationView(generics.CreateAPIView):
             email=validated_data.get('email', ''),
             first_name=validated_data.get('first_name', ''),
             last_name=validated_data.get('last_name', ''),
-            password=validated_data.get('password'),  # Get password from validated data
+            password=request.data['password'],
             role=role,
             mfi=validated_data.get('mfi')
         )
