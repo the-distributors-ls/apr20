@@ -5,7 +5,7 @@ from .models import User, BorrowerProfile, MFIEmployeeProfile
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'role', 'mfi']
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'role', 'mfi', 'password']
         read_only_fields = ['id']
 
 class BorrowerProfileSerializer(serializers.ModelSerializer):
