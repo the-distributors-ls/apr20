@@ -62,24 +62,41 @@ class LoanApplicationDetailView(generics.RetrieveAPIView):
             return LoanApplication.objects.all()
         return LoanApplication.objects.none()
 
+# views.py - Update LoanDecisionView permissions and logic
 class LoanDecisionView(generics.UpdateAPIView):
     queryset = LoanApplication.objects.filter(status=LoanApplication.Status.PENDING)
     serializer_class = LoanDecisionSerializer
-    permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
+    permission_classes = [permissions.IsAuthenticated]  # Removed IsAdminUser
+    
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not (request.user.is_admin() or request.user.is_mfi_employee()):
+            self.permission_denied(request)
+    
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_admin():
+            return super().get_queryset()
+        elif user.is_mfi_employee():
+            return super().get_queryset().filter(mfi=user.mfi)
+        return super().get_queryset().none()
     
     def update(self, request, *args, **kwargs):
         loan = self.get_object()
+        
+        # Additional permission check for MFI employees
+        if request.user.is_mfi_employee() and loan.mfi != request.user.mfi:
+            raise PermissionDenied("You can only process loans for your MFI")
+            
         old_status = loan.status
         serializer = self.get_serializer(loan, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         
-        # Update loan status
         loan = serializer.save(
             decision_by=request.user,
             decision_date=timezone.now()
         )
         
-        # Create status update record
         LoanStatusUpdate.objects.create(
             loan=loan,
             old_status=old_status,
@@ -88,31 +105,38 @@ class LoanDecisionView(generics.UpdateAPIView):
             notes=serializer.validated_data.get('notes', '')
         )
         
-        # If approved, create loan in MFI's system
         if loan.status == LoanApplication.Status.APPROVED:
             self._create_loan_in_mfi_system(loan)
         
         return Response(serializer.data)
     
     def _create_loan_in_mfi_system(self, loan):
-        """Enhanced version with better error handling"""
+        """Cluster-specific loan creation"""
         try:
+            logger.debug(f"Attempting to create loan in MFI system for loan ID: {loan.id}")
             cluster = loan.mfi.cluster_name
             if not cluster:
+                logger.error("MFI has no cluster assigned")
                 raise ValueError("MFI has no cluster assigned")
-            
+            national_id = loan.borrower.borrower_profile.national_id
+            logger.debug(f"Looking for borrower with national_id: {national_id}")
+
+
             with connection.cursor() as cursor:
-                # Get borrower's external ID from MFI system
+                # Get borrower's external ID from correct cluster
                 cursor.execute(f"""
                     SELECT id FROM {cluster}.borrowers 
                     WHERE national_id = %s LIMIT 1
                 """, [loan.borrower.borrower_profile.national_id])
                 
                 borrower_id = cursor.fetchone()
+
                 if not borrower_id:
-                    raise ValueError("Borrower not found in MFI system")
+                    logger.error(f"No borrower found in {cluster} with national_id: {national_id}")
+                    raise ValueError(f"Borrower not found in {cluster} system")
                 
-                # Insert loan
+                logger.debug(f"Found borrower ID: {borrower_id[0]} in {cluster}")
+                # Insert loan into correct cluster
                 cursor.execute(f"""
                     INSERT INTO {cluster}.loans (
                         borrower_id, amount, interest_rate, status,
@@ -133,14 +157,15 @@ class LoanDecisionView(generics.UpdateAPIView):
                 ])
                 
                 mfi_loan_id = cursor.fetchone()[0]
+                logger.debug(f"Created loan in {cluster} with ID: {mfi_loan_id}")
+                
                 loan.external_loan_id = mfi_loan_id
                 loan.save()
                 
                 logger.info(f"Successfully created loan in {cluster} with ID {mfi_loan_id}")
                 
         except Exception as e:
-            logger.error(f"Failed to create loan in MFI system: {str(e)}")
-            # Consider adding a retry mechanism here
+            logger.error(f"Failed to create loan in MFI system ({cluster}): {str(e)}")
             raise
 
 
