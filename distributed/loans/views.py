@@ -95,42 +95,52 @@ class LoanDecisionView(generics.UpdateAPIView):
         return Response(serializer.data)
     
     def _create_loan_in_mfi_system(self, loan):
-        """Create the loan in the respective MFI's database via FDW"""
+        """Enhanced version with better error handling"""
         try:
-            if loan.mfi.cluster_name == 'mfi_a':  # Match your cluster name exactly
-                with connection.cursor() as cursor:
-                    # Insert into MFI's loans table via FDW
-                    cursor.execute(f"""
-                        INSERT INTO mfi_a.loans (
-                            borrower_id, amount, interest_rate, 
-                            status, purpose, application_date,
-                            approval_date, term_months, external_reference
-                        )
-                        VALUES (
-                            %s, %s, %s, 
-                            %s, %s, %s,
-                            %s, %s, %s
-                        )
-                        RETURNING id
-                    """, [
-                        loan.borrower.borrower_profile.national_id,  # Assuming you store MFI borrower ID
-                        float(loan.amount),
-                        float(loan.interest_rate),
-                        'approved',  # Initial status in MFI system
-                        loan.purpose,
-                        loan.application_date,
-                        timezone.now(),
-                        loan.term_months,
-                        f"LETSEMA-{loan.id}"  # External reference back to your system
-                    ])
-                    
-                    # Get the inserted loan ID from MFI system
-                    mfi_loan_id = cursor.fetchone()[0]
-                    loan.external_loan_id = mfi_loan_id
-                    loan.save()
-                    
+            cluster = loan.mfi.cluster_name
+            if not cluster:
+                raise ValueError("MFI has no cluster assigned")
+            
+            with connection.cursor() as cursor:
+                # Get borrower's external ID from MFI system
+                cursor.execute(f"""
+                    SELECT id FROM {cluster}.borrowers 
+                    WHERE national_id = %s LIMIT 1
+                """, [loan.borrower.borrower_profile.national_id])
+                
+                borrower_id = cursor.fetchone()
+                if not borrower_id:
+                    raise ValueError("Borrower not found in MFI system")
+                
+                # Insert loan
+                cursor.execute(f"""
+                    INSERT INTO {cluster}.loans (
+                        borrower_id, amount, interest_rate, status,
+                        purpose, application_date, approval_date,
+                        term_months, external_reference
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING id
+                """, [
+                    borrower_id[0],
+                    float(loan.amount),
+                    float(loan.interest_rate),
+                    'approved',
+                    loan.purpose,
+                    loan.application_date,
+                    timezone.now(),
+                    loan.term_months,
+                    f"LETSEMA-{loan.id}"
+                ])
+                
+                mfi_loan_id = cursor.fetchone()[0]
+                loan.external_loan_id = mfi_loan_id
+                loan.save()
+                
+                logger.info(f"Successfully created loan in {cluster} with ID {mfi_loan_id}")
+                
         except Exception as e:
             logger.error(f"Failed to create loan in MFI system: {str(e)}")
+            # Consider adding a retry mechanism here
             raise
 
 
