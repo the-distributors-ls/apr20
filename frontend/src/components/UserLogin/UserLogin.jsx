@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import axios from "axios";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
@@ -26,28 +26,7 @@ const UserLogin = () => {
 
   const navigate = useNavigate();
 
-  // Check for existing token on component mount
-  useEffect(() => {
-    const token = localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
-    if (token) {
-      axios.get(`${API_BASE_URL}/users/validate-token/`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      .then(response => {
-        if (response.data.valid) {
-          const user = response.data.user;
-          redirectBasedOnUserRole(user);
-        }
-      })
-      .catch(() => {
-        // Clear invalid tokens
-        localStorage.removeItem("authToken");
-        localStorage.removeItem("refreshToken");
-        sessionStorage.removeItem("authToken");
-        sessionStorage.removeItem("refreshToken");
-      });
-    }
-  }, [navigate]);
+  // Removed the automatic login useEffect hook
 
   const redirectBasedOnUserRole = (user) => {
     switch(user.role) {
@@ -74,9 +53,16 @@ const UserLogin = () => {
     setIsLoading(true);
     
     try {
+      // Clear any existing tokens first
+      localStorage.removeItem("authToken");
+      localStorage.removeItem("refreshToken");
+      sessionStorage.removeItem("authToken");
+      sessionStorage.removeItem("refreshToken");
+      sessionStorage.removeItem("user");
+      
       // Get JWT token
       const response = await axios.post(
-        `${API_BASE_URL}/users/token/`,
+        `${API_BASE_URL}/auth/token/`,  // Updated to match main urls.py route
         formData
       );
   
@@ -103,8 +89,9 @@ const UserLogin = () => {
       redirectBasedOnUserRole(user);
   
     } catch (error) {
+      console.error("Login error:", error);
       setMessageType("error");
-      setMessage("Login failed: " + (error.response?.data?.detail || "Invalid credentials"));
+      setMessage("Login failed: " + (error.response?.data?.detail || error.message || "Invalid credentials"));
     } finally {
       setIsLoading(false);
     }
