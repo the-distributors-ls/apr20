@@ -10,6 +10,9 @@ import GoogleIcon from "/src/assets/google-icon.svg";
 import FacebookIcon from "/src/assets/facebook-icon.svg";
 import MicrosoftIcon from "/src/assets/microsoft-icon.svg";
 
+// Base API URL
+const API_BASE_URL = "http://localhost:8000/api";
+
 const UserLogin = () => {
   const [formData, setFormData] = useState({
     username: "",
@@ -25,29 +28,40 @@ const UserLogin = () => {
 
   // Check for existing token on component mount
   useEffect(() => {
-    const token =
-      localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
+    const token = localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
     if (token) {
-      // Validate token with your backend
-      validateToken(token);
+      axios.get(`${API_BASE_URL}/users/validate-token/`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      .then(response => {
+        if (response.data.valid) {
+          const user = response.data.user;
+          redirectBasedOnUserRole(user);
+        }
+      })
+      .catch(() => {
+        // Clear invalid tokens
+        localStorage.removeItem("authToken");
+        localStorage.removeItem("refreshToken");
+        sessionStorage.removeItem("authToken");
+        sessionStorage.removeItem("refreshToken");
+      });
     }
-  });
+  }, [navigate]);
 
-  const validateToken = async (token) => {
-    try {
-      const response = await axios.post(
-        "http://localhost:8000/api/auth/validate-token/",
-        {},
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      if (response.data.valid) {
-        navigate("/dashboard"); // Redirect to dashboard if token is valid
-      }
-    } catch (error) {
-      // Token is invalid, clear storage
-      localStorage.removeItem("authToken");
-      sessionStorage.removeItem("authToken");
+  const redirectBasedOnUserRole = (user) => {
+    switch(user.role) {
+      case 'BORROWER':
+        navigate('/borrower-dashboard');
+        break;
+      case 'MFI_EMPLOYEE':
+        navigate('/mfi-dashboard');
+        break;
+      case 'ADMIN':
+        navigate('/admin-dashboard');
+        break;
+      default:
+        navigate('/dashboard');
     }
   };
 
@@ -55,101 +69,44 @@ const UserLogin = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  /*const handleLoginSubmit = async (e) => {
-    e.preventDefault();
-    setIsLoading(true);
-
-    try {
-      const response = await axios.post(
-        "http://localhost:8000/api/authentication/login/",
-        formData
-      );
-      const { token, user } = response.data;
-
-      // Store token based on "Remember me" choice
-      if (rememberMe) {
-        localStorage.setItem("authToken", token);
-      } else {
-        sessionStorage.setItem("authToken", token);
-      }
-
-      // Store user info
-      sessionStorage.setItem("user", JSON.stringify(user));
-
-      setMessageType("success");
-      setMessage("Login successful!");
-
-      if (user.is_staff) {
-        navigate("/dashboard2");
-      } else {
-        navigate("/dashboard");
-      }
-    } catch (error) {
-      setMessageType("error");
-      setMessage(
-        "Login failed: " + (error.response?.data?.message || error.message)
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  };*/
-
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-
+    
     try {
+      // Get JWT token
       const response = await axios.post(
-        "http://localhost:8000/api/authentication/login/",
+        `${API_BASE_URL}/auth/token/`,
         formData
       );
-
-      // Extract token (access token)
-      const token = response.data.access;
-
-      // Store token based on "Remember me" choice
-      if (rememberMe) {
-        localStorage.setItem("authToken", token);
-      } else {
-        sessionStorage.setItem("authToken", token);
-      }
-
-      setMessageType("success");
-      setMessage("Login successful!");
-
-      // After login, make a separate call to fetch user data
-      fetchUserData(token);
-    } catch (error) {
-      setMessageType("error");
-      setMessage(
-        "Login failed: " + (error.response?.data?.message || error.message)
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Add this function to fetch user data after login
-  const fetchUserData = async (token) => {
-    try {
-      const response = await axios.get(
-        "http://localhost:8000/api/authentication/user/",
+  
+      const { access: token, refresh } = response.data;
+  
+      // Store tokens based on remember me preference
+      const storage = rememberMe ? localStorage : sessionStorage;
+      storage.setItem("authToken", token);
+      storage.setItem("refreshToken", refresh);
+  
+      // Get user data with the token
+      const userResponse = await axios.get(
+        `${API_BASE_URL}/users/validate-token/`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-
-      const user = response.data;
+  
+      const user = userResponse.data.user;
       sessionStorage.setItem("user", JSON.stringify(user));
-
-      // Redirect based on user role
-      if (user.role == "MFI") {
-        navigate("/dashboard");
-      } else {
-        navigate("/userdashboard");
-      }
+      
+      setMessageType("success");
+      setMessage("Login successful! Redirecting...");
+      
+      // Redirect based on role
+      redirectBasedOnUserRole(user);
+  
     } catch (error) {
-      console.error("Error fetching user data:", error);
-      // Default redirect if user data fetch fails
-      navigate("/dashboard");
+      setMessageType("error");
+      setMessage("Login failed: " + (error.response?.data?.detail || "Invalid credentials"));
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -158,9 +115,9 @@ const UserLogin = () => {
 
     // Define OAuth endpoints
     const oauthEndpoints = {
-      google: "http://localhost:8000/api/auth/oauth/google",
-      facebook: "http://localhost:8000/api/auth/oauth/facebook",
-      microsoft: "http://localhost:8000/api/auth/oauth/microsoft",
+      google: `${API_BASE_URL}/auth/oauth/google`,
+      facebook: `${API_BASE_URL}/auth/oauth/facebook`,
+      microsoft: `${API_BASE_URL}/auth/oauth/microsoft`,
     };
 
     // Open OAuth popup
@@ -182,21 +139,22 @@ const UserLogin = () => {
         if (event.origin !== window.location.origin) return;
 
         if (event.data.token) {
-          // Store token
-          if (rememberMe) {
-            localStorage.setItem("authToken", event.data.token);
-          } else {
-            sessionStorage.setItem("authToken", event.data.token);
+          // Store token based on remember me preference
+          const storage = rememberMe ? localStorage : sessionStorage;
+          storage.setItem("authToken", event.data.token);
+          
+          if (event.data.refreshToken) {
+            storage.setItem("refreshToken", event.data.refreshToken);
           }
 
           // Store user info
-          sessionStorage.setItem("user", JSON.stringify(event.data.user));
+          if (event.data.user) {
+            sessionStorage.setItem("user", JSON.stringify(event.data.user));
+            redirectBasedOnUserRole(event.data.user);
+          }
 
           setMessageType("success");
           setMessage(`Successfully logged in with ${provider}!`);
-
-          // Redirect to dashboard
-          setTimeout(() => navigate("/dashboard"), 1000);
         } else if (event.data.error) {
           setMessageType("error");
           setMessage(`${provider} login failed: ${event.data.error}`);
@@ -341,7 +299,7 @@ const UserLogin = () => {
                 />
                 <label htmlFor="remember">Remember me</label>
               </div>
-              <a href="#" className="forgot-password">
+              <a href="/forgot-password" className="forgot-password">
                 Forgot Password?
               </a>
             </motion.div>
