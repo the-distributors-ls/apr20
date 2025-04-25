@@ -8,6 +8,12 @@ import LoanApplicationForm from "../LoanApplicationForm/LoanApplicationForm";
 import "./UserDashboard.css";
 
 const UserDashboard = () => {
+
+  const [loanApplications, setLoanApplications] = useState([]);
+  const [loanLoading, setLoanLoading] = useState(false);
+  const [loanError, setLoanError] = useState(null);
+  const [statusFilter, setStatusFilter] = useState('all');
+
   const [activeTab, setActiveTab] = useState("overview");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -57,25 +63,33 @@ const UserDashboard = () => {
   };
 
   useEffect(() => {
-    const fetchMfis = async () => {
-      try {
-        const response = await fetch("http://127.0.0.1:8000/api/mfi/");
-        if (!response.ok) {
-          throw new Error("Failed to fetch MFIs");
+  const fetchLoanApplications = async () => {
+    try {
+      setLoanLoading(true);
+      const response = await fetch("http://127.0.0.1:8000/api/loans/", {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
         }
-        const data = await response.json();
-        setMfis(data);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (activeTab === "mfi") {
-      fetchMfis();
+      });
+      if (!response.ok) throw new Error("Failed to fetch loans");
+      const data = await response.json();
+      setLoanApplications(data);
+    } catch (err) {
+      setLoanError(err.message);
+    } finally {
+      setLoanLoading(false);
     }
-  }, [activeTab]);
+  };
+
+  if (activeTab === "loans") {
+    fetchLoanApplications();
+  }
+}, [activeTab, statusFilter]);
+
+// Add this filtered loans calculation
+const filteredLoans = statusFilter === 'all' 
+  ? loanApplications 
+  : loanApplications.filter(loan => loan.status === statusFilter);
 
   const calculateMonthlyPayment = () => {
     const principal = loanAmount;
@@ -220,7 +234,50 @@ const UserDashboard = () => {
           )}
           {activeTab === "loans" && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              <LoanTable loans={userData.loans} />
+              <div className="loans-header">
+                <h2>My Loan Applications</h2>
+                <div className="status-filter">
+                  <label>Filter by status:</label>
+                  <select 
+                    value={statusFilter} 
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                  >
+                    <option value="all">All</option>
+                    <option value="PENDING">Pending</option>
+                    <option value="APPROVED">Approved</option>
+                    <option value="REJECTED">Rejected</option>
+                  </select>
+                </div>
+              </div>
+              
+              {loanLoading ? (
+                <div className="loading-spinner">Loading loans...</div>
+              ) : loanError ? (
+                <div className="error-message">{loanError}</div>
+              ) : (
+                <div className="loan-applications-grid">
+                  {filteredLoans.length > 0 ? (
+                    filteredLoans.map(loan => (
+                      <div key={loan.id} className={`loan-card status-${loan.status.toLowerCase()}`}>
+                        <div className="loan-card-header">
+                          <h3>Loan #{loan.id}</h3>
+                          <span className={`status-badge ${loan.status.toLowerCase()}`}>
+                            {loan.status}
+                          </span>
+                        </div>
+                        <div className="loan-card-body">
+                          <p><strong>Amount:</strong> {loan.amount}</p>
+                          <p><strong>MFI:</strong> {loan.mfi.name}</p>
+                          <p><strong>Term:</strong> {loan.term_months} months</p>
+                          <p><strong>Applied:</strong> {new Date(loan.application_date).toLocaleDateString()}</p>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="no-loans">No loan applications found</div>
+                  )}
+                </div>
+              )}
             </motion.div>
           )}
           {activeTab === "apply" && (

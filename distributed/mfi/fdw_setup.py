@@ -1,5 +1,6 @@
 from django.db import connection
 from django.conf import settings
+from mongo_credit.models import CreditHistory
 
 def setup_fdw_servers():
     """Set up foreign data wrappers for all configured MFI clusters."""
@@ -132,3 +133,70 @@ def query_mfi_data():
                 
         except Exception as e:
             print(f"Error querying data: {str(e)}")
+
+def sync_credit_histories(cluster='default'):
+    """Sync credit histories from MFI to MongoDB"""
+    from mongo_credit.credit_utils import get_mfi_credit_data, init_mongo_connection
+    
+    init_mongo_connection()
+    
+    with connection.cursor() as cursor:
+        cursor.execute(f"SELECT national_id FROM {cluster}.borrowers LIMIT 100")
+        borrowers = cursor.fetchall()
+        
+        for borrower in borrowers:
+            national_id = borrower[0]
+            try:
+                credit_data = get_mfi_credit_data(cluster, national_id)
+                CreditHistory.objects.update_or_create(
+                    national_id=national_id,
+                    defaults=credit_data
+                )
+                print(f"Synced credit history for {national_id}")
+            except Exception as e:
+                print(f"Failed to sync {national_id}: {str(e)}")
+            
+
+def test_fdw_connection(cluster_name='default'):
+    """Test FDW connection to a specific cluster"""
+    with connection.cursor() as cursor:
+        try:
+            cursor.execute(f"""
+                SELECT 1 FROM {cluster_name}.borrowers LIMIT 1
+            """)
+            result = cursor.fetchone()
+            if result:
+                print(f"FDW connection to {cluster_name} successful!")
+                return True
+            return False
+        except Exception as e:
+            print(f"FDW connection test failed: {str(e)}")
+            return False
+
+def pull_sample_loans(cluster_name='default', limit=5):
+    """Pull sample loan data from specified cluster"""
+    with connection.cursor() as cursor:
+        try:
+            cursor.execute(f"""
+                SELECT 
+                    b.national_id, 
+                    b.name, 
+                    l.id AS loan_id,
+                    l.amount,
+                    l.status,
+                    l.application_date,
+                    l.approval_date
+                FROM {cluster_name}.borrowers b
+                JOIN {cluster_name}.loans l ON b.id = l.borrower_id
+                LIMIT %s
+            """, [limit])
+            
+            loans = cursor.fetchall()
+            print(f"\nSample loans from {cluster_name}:")
+            for loan in loans:
+                print(loan)
+            
+            return loans
+        except Exception as e:
+            print(f"Error pulling loans: {str(e)}")
+            return None
