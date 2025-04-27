@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import {
   BarChart2,
@@ -25,6 +24,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 import "./Dashboard.css";
+import apiClient from "../../utils/apiClient";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -37,6 +37,7 @@ const Dashboard = () => {
   const [loansData, setLoansData] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [loanApplications, setLoanApplications] = useState([]);
 
   // Mock data for dashboard
   const dashboardData = {
@@ -216,44 +217,64 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
-    // Check for auth token
     const token =
       localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
 
-    /*if (!token) {
-      navigate("/login");
-      return;
-    }*/
-
-    // Fetch user data
     const fetchUserData = async () => {
       try {
-        const response = await axios.get(
-          "http://localhost:8000/api/auth/user/",
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
-        setUserData(response.data);
+        const response = await apiClient.get("auth/user/");
+        setUserData(response);
       } catch (error) {
         console.error("Error fetching user data:", error);
-        // Redirect to login if unauthorized
-        if (error.response?.status === 401) {
-          localStorage.removeItem("authToken");
-          sessionStorage.removeItem("authToken");
-          navigate("/login");
-        }
-      } finally {
-        setIsLoading(false);
+        // Don't block everything if user data fails
       }
     };
 
-    // In a real app, fetch actual loan data
-    // For this demo, we'll use the mock data after a timeout to simulate API call
-    setTimeout(() => {
-      setLoansData(dashboardData.recentLoans);
-      fetchUserData();
-    }, 1000);
+    const fetchLoanApplications = async () => {
+      try {
+        const response = await apiClient.get("loans/");
+        const data = response;
+        if (Array.isArray(data)) {
+          setLoanApplications(data);
+          setLoansData(data);
+        } else {
+          setLoanApplications([data]);
+          setLoansData([data]);
+        }
+      } catch (error) {
+        console.error("Error fetching loan applications:", error);
+      }
+    };
+
+    // Add a function to submit a new loan application
+    const submitLoanApplication = async (loanData) => {
+      try {
+        setIsLoading(true);
+        const response = await apiClient.post("loans/", loanData);
+        // Refresh the loan data after submission
+        await fetchLoanApplications();
+        setIsLoading(false);
+        return response;
+      } catch (error) {
+        console.error("Error submitting loan application:", error);
+        setIsLoading(false);
+        throw error;
+      }
+    };
+
+    // Add a function to refresh loans data
+    const refreshLoansData = async () => {
+      await fetchLoanApplications();
+    };
+
+    const loadDashboardData = async () => {
+       
+      await fetchUserData(); // Try to fetch user (even if it fails)
+      await fetchLoanApplications(); // Always try to fetch loans
+      setIsLoading(false);
+    };
+
+    loadDashboardData();
   }, [navigate]);
 
   const handleLogout = () => {
@@ -263,14 +284,33 @@ const Dashboard = () => {
   };
 
   const filterLoans = (loans) => {
-    if (!loans) return [];
+    if (!loans || !Array.isArray(loans) || loans.length === 0) return [];
 
     return loans.filter((loan) => {
+      // Check if borrower exists and has a username or first_name
+      const borrowerName = loan.borrower
+        ? loan.borrower.username ||
+          `${loan.borrower.first_name} ${loan.borrower.last_name}`
+        : loan.purpose || "";
+
+      const loanId = loan.id ? loan.id.toString() : "";
+      const externalId = loan.external_loan_id
+        ? loan.external_loan_id.toString()
+        : "";
+
       const matchesSearch =
-        loan.borrower.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        loan.id.toLowerCase().includes(searchQuery.toLowerCase());
+        borrowerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        loanId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        externalId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        loan.purpose?.toLowerCase().includes(searchQuery.toLowerCase());
+
       const matchesFilter =
-        filterStatus === "all" || loan.status === filterStatus;
+        filterStatus === "all" ||
+        loan.status === filterStatus ||
+        (filterStatus === "Active" && loan.status === "ACTIVE") ||
+        (filterStatus === "Overdue" && loan.status === "OVERDUE") ||
+        (filterStatus === "Completed" && loan.status === "REPAID") ||
+        (filterStatus === "Pending" && loan.status === "PENDING");
 
       return matchesSearch && matchesFilter;
     });
@@ -279,21 +319,44 @@ const Dashboard = () => {
   const getLoanStatusClass = (status) => {
     switch (status) {
       case "Active":
+      case "ACTIVE":
         return "status-active";
       case "Overdue":
+      case "OVERDUE":
         return "status-overdue";
       case "Completed":
+      case "REPAID":
         return "status-completed";
       case "Pending":
+      case "PENDING":
         return "status-pending";
       case "Approved":
+      case "APPROVED":
         return "status-approved";
       case "Rejected":
+      case "REJECTED":
         return "status-rejected";
       case "Under Review":
+      case "UNDER_REVIEW":
         return "status-review";
       default:
         return "";
+    }
+  };
+
+  const refreshLoansData = async () => {
+    try {
+      const response = await apiClient.get("loans/");
+      const data = response;
+      if (Array.isArray(data)) {
+        setLoanApplications(data);
+        setLoansData(data);
+      } else {
+        setLoanApplications([data]);
+        setLoansData([data]);
+      }
+    } catch (error) {
+      console.error("Error fetching loan applications:", error);
     }
   };
 
@@ -893,8 +956,13 @@ const Dashboard = () => {
               transition={{ duration: 0.3 }}
             >
               <div className="page-title">
-                <h2>Loan Management</h2>
-                <p>View and manage all active and past loans.</p>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h2>Loan Management</h2>
+                    <p>View and manage all active and past loans.</p>
+                  </div>
+                  <CreateLoanButton onSuccess={refreshLoansData} />
+                </div>
               </div>
 
               <div className="loans-filters">
@@ -902,7 +970,7 @@ const Dashboard = () => {
                   <Search size={18} />
                   <input
                     type="text"
-                    placeholder="Search by borrower name or loan ID"
+                    placeholder="Search by borrower name, loan ID or purpose"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
@@ -918,6 +986,7 @@ const Dashboard = () => {
                     <option value="Active">Active</option>
                     <option value="Overdue">Overdue</option>
                     <option value="Completed">Completed</option>
+                    <option value="Pending">Pending</option>
                   </select>
 
                   <button className="filter-button">
@@ -938,46 +1007,58 @@ const Dashboard = () => {
                     <tr>
                       <th>Loan ID</th>
                       <th>Borrower</th>
+                      <th>Purpose</th>
                       <th>Amount</th>
                       <th>Status</th>
-                      <th>Disbursement Date</th>
-                      <th>Days Overdue</th>
+                      <th>Application Date</th>
+                      <th>Term (Months)</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filterLoans(loansData).map((loan, index) => (
-                      <tr key={index}>
-                        <td>{loan.id}</td>
-                        <td>{loan.borrower}</td>
-                        <td>M{loan.amount.toLocaleString()}</td>
-                        <td>
-                          <span
-                            className={`status-badge ${getLoanStatusClass(
-                              loan.status
-                            )}`}
-                          >
-                            {loan.status}
-                          </span>
-                        </td>
-                        <td>{loan.date}</td>
-                        <td>
-                          {loan.daysOverdue > 0 ? (
-                            <span className="overdue">
-                              {loan.daysOverdue} days
-                            </span>
-                          ) : (
-                            "None"
-                          )}
-                        </td>
-                        <td>
-                          <div className="action-buttons">
-                            <button className="view-btn">View</button>
-                            <button className="edit-btn">Edit</button>
-                          </div>
+                    {loansData.length === 0 ? (
+                      <tr>
+                        <td colSpan="8" style={{ textAlign: "center" }}>
+                          No loans found.
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      filterLoans(loansData).map((loan, index) => (
+                        <tr key={loan.id || index}>
+                          <td>{loan.external_loan_id || loan.id}</td>
+                          <td>
+                            {loan.borrower
+                              ? `${loan.borrower.first_name} ${loan.borrower.last_name}`
+                              : "Unknown"}
+                          </td>
+                          <td>{loan.purpose}</td>
+                          <td>M{Number(loan.amount).toLocaleString()}</td>
+                          <td>
+                            <span
+                              className={`status-badge ${getLoanStatusClass(
+                                loan.status
+                              )}`}
+                            >
+                              {loan.status}
+                            </span>
+                          </td>
+                          <td>
+                            {loan.application_date
+                              ? new Date(
+                                  loan.application_date
+                                ).toLocaleDateString()
+                              : "N/A"}
+                          </td>
+                          <td>{loan.term_months}</td>
+                          <td>
+                            <div className="action-buttons">
+                              <button className="view-btn">View</button>
+                              <button className="edit-btn">Edit</button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1002,59 +1083,69 @@ const Dashboard = () => {
                     <tr>
                       <th>Application ID</th>
                       <th>Borrower</th>
+                      <th>Purpose</th>
                       <th>Amount Requested</th>
                       <th>Status</th>
                       <th>Date</th>
-                      <th>Credit Score</th>
+                      <th>Term (Months)</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {dashboardData.loanApplications.map((app, index) => (
-                      <tr key={index}>
-                        <td>{app.id}</td>
-                        <td>{app.borrower}</td>
-                        <td>M{app.amount.toLocaleString()}</td>
-                        <td>
-                          <span
-                            className={`status-badge ${getLoanStatusClass(
-                              app.status
-                            )}`}
-                          >
-                            {app.status}
-                          </span>
-                        </td>
-                        <td>{app.date}</td>
-                        <td>
-                          <div className="credit-score">
-                            <div
-                              className="score-bar"
-                              style={{
-                                width: `${app.creditScore}%`,
-                                backgroundColor:
-                                  app.creditScore > 70
-                                    ? "#4CAF50"
-                                    : app.creditScore > 60
-                                    ? "#FFC107"
-                                    : "#F44336",
-                              }}
-                            ></div>
-                            <span>{app.creditScore}</span>
-                          </div>
-                        </td>
-                        <td>
-                          <div className="action-buttons">
-                            <button className="review-btn">Review</button>
-                            {app.status === "Pending" && (
-                              <>
-                                <button className="approve-btn">Approve</button>
-                                <button className="reject-btn">Reject</button>
-                              </>
-                            )}
-                          </div>
+                    {loanApplications.length === 0 ? (
+                      <tr>
+                        <td colSpan="8" style={{ textAlign: "center" }}>
+                          No loan applications found.
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      loanApplications.map((app, index) => (
+                        <tr key={app.id || index}>
+                          <td>{app.external_loan_id || app.id}</td>
+                          <td>
+                            {app.borrower
+                              ? `${app.borrower.first_name} ${app.borrower.last_name}`
+                              : "Unknown"}
+                          </td>
+                          <td>{app.purpose}</td>
+                          <td>M{Number(app.amount).toLocaleString()}</td>
+                          <td>
+                            <span
+                              className={`status-badge ${getLoanStatusClass(
+                                app.status
+                              )}`}
+                            >
+                              {app.status}
+                            </span>
+                          </td>
+                          <td>
+                            {app.application_date
+                              ? new Date(
+                                  app.application_date
+                                ).toLocaleDateString()
+                              : "N/A"}
+                          </td>
+                          <td>{app.term_months}</td>
+                          <td>
+                            <div className="action-buttons">
+                              <button className="review-btn">Review</button>
+                              {app.status === "PENDING" && (
+                                <>
+                                  <ApproveLoanButton
+                                    loanId={app.id}
+                                    onSuccess={refreshLoansData}
+                                  />
+                                  <RejectLoanButton
+                                    loanId={app.id}
+                                    onSuccess={refreshLoansData}
+                                  />
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
