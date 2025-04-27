@@ -372,8 +372,8 @@ const UserDashboard = () => {
                             </div>
                             <div className="mfi-detail">
                               <span className="detail-label">Contact:</span>
-                              <a href={`mailto:${mfi.contact_info}`}>
-                                {mfi.contact_info}
+                              <a href={`mailto:${mfi.contact}`}>
+                                {mfi.contact}
                               </a>
                             </div>
                           </div>

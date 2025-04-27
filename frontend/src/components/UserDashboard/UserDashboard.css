@@ -1,3 +1,6 @@
+/* MFI Management Dashboard Styles */
+
+/* Layout */
 .mfi-management {
   padding: 20px;
 }
@@ -13,6 +16,7 @@
   gap: 20px;
 }
 
+/* Card Styles */
 .mfi-card {
   background: white;
   border-radius: 8px;
@@ -39,6 +43,36 @@
   color: #2c3e50;
 }
 
+.mfi-card-body {
+  padding: 15px;
+}
+
+.mfi-card-footer {
+  padding: 15px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  border-top: 1px solid #eee;
+}
+
+.mfi-card-footer .btn {
+  flex: 1;
+  text-align: center;
+}
+
+/* Details */
+.mfi-detail {
+  margin-bottom: 10px;
+  display: flex;
+}
+
+.detail-label {
+  font-weight: bold;
+  margin-right: 8px;
+  min-width: 80px;
+}
+
+/* Status Badges */
 .status-badge {
   padding: 4px 8px;
   border-radius: 12px;
@@ -56,28 +90,7 @@
   color: #721c24;
 }
 
-.mfi-card-body {
-  padding: 15px;
-}
-
-.mfi-detail {
-  margin-bottom: 10px;
-  display: flex;
-}
-
-.detail-label {
-  font-weight: bold;
-  margin-right: 8px;
-  min-width: 80px;
-}
-
-.mfi-card-footer {
-  padding: 15px;
-  display: flex;
-  justify-content: space-between;
-  border-top: 1px solid #eee;
-}
-
+/* Buttons */
 .btn {
   padding: 8px 16px;
   border-radius: 4px;
@@ -96,6 +109,38 @@
   color: white;
 }
 
+.btn-success {
+  background-color: #28a745;
+  color: white;
+}
+
+.btn-error {
+  background-color: #dc3545;
+  color: white;
+}
+
+.btn-disabled {
+  background-color: #e9ecef;
+  color: #6c757d;
+  cursor: not-allowed;
+}
+
+.btn-cancel {
+  background-color: #f8f9fa;
+  color: #333;
+  border: 1px solid #ddd;
+}
+
+.btn-submit {
+  background-color: #28a745;
+  color: white;
+}
+
+.btn-close {
+  margin-top: 10px;
+}
+
+/* Loading States */
 .loading-spinner {
   text-align: center;
   padding: 40px;
@@ -110,23 +155,9 @@
   border-radius: 4px;
 }
 
-.btn-disabled {
-  background-color: #e9ecef;
-  color: #6c757d;
-  cursor: not-allowed;
-}
-
-.btn-success {
-  background-color: #28a745;
-  color: white;
-}
-
-.btn-error {
-  background-color: #dc3545;
-  color: white;
-}
-
-.join-form-overlay {
+/* Overlays & Popups */
+.join-form-overlay,
+.popup-overlay {
   position: fixed;
   top: 0;
   left: 0;
@@ -139,27 +170,54 @@
   z-index: 1000;
 }
 
-.popup-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
+.join-form-container,
+.popup-container {
+  background: white;
+  padding: 25px;
+  border-radius: 8px;
+  width: 100%;
+  max-width: 500px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
 }
 
 .popup-container {
-  background: white;
   padding: 20px;
-  border-radius: 8px;
   width: 90%;
-  max-width: 500px;
 }
 
-.btn-close {
-  margin-top: 10px;
+.join-form-container h3 {
+  margin-top: 0;
+  color: #2c3e50;
+}
+
+.join-form-container p {
+  margin-bottom: 20px;
+  color: #666;
+}
+
+/* Forms */
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 500;
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
 }
