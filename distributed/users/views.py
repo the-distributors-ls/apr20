@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .serializers import UserSerializer, CustomTokenObtainPairSerializer
+from .serializers import UserSerializer, CustomTokenObtainPairSerializer, UserProfileSerializer
 from .models import User
 
 class CustomTokenObtainPairView(TokenObtainPairView):
@@ -14,6 +14,14 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 def validate_token(request):
     """Endpoint to validate user token and return user data"""
     return Response({'valid': True, 'user': UserSerializer(request.user).data})
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def user_profile(request):
+    """Endpoint to get full user profile data including profile details"""
+    user = request.user
+    serializer = UserProfileSerializer(user)
+    return Response(serializer.data)
 
 class UserRegistrationView(generics.CreateAPIView):
     serializer_class = UserSerializer

@@ -4,6 +4,7 @@ import {
   getRefreshToken,
   storeAuthData,
   clearAuthData,
+  decodeToken
 } from "./authUtils";
 
 const API_BASE_URL = "http://localhost:8000/api";
@@ -31,8 +32,9 @@ const refreshAuthToken = async () => {
 
     const data = await response.json();
 
-    // Store the new access token
-    storeAuthData(data.access, null, null, false);
+    // Store the new access token and decode user info
+    const user = decodeToken(data.access);
+    storeAuthData(data.access, null, user, false);
 
     return data.access;
   } catch (error) {
@@ -47,7 +49,7 @@ const apiClient = {
   request: async (endpoint, options = {}) => {
     const url = endpoint.startsWith("http")
       ? endpoint
-      : `${API_BASE_URL}/${endpoint}`;
+      : `${API_BASE_URL}/${endpoint.replace(/^\/+/, '')}`; // Remove leading slashes
 
     // Set up headers with authentication token
     const headers = {
@@ -61,15 +63,18 @@ const apiClient = {
       headers.Authorization = `Bearer ${token}`;
     }
 
+    // Only include credentials for auth endpoints
+    const requestOptions = {
+      ...options,
+      headers,
+    };
+
     // Make the request
     try {
-      const response = await fetch(url, {
-        ...options,
-        headers,
-      });
+      const response = await fetch(url, requestOptions);
 
       // Handle 401 Unauthorized - try to refresh token
-      if (response.status === 401) {
+      if (response.status === 401 && !url.includes('auth/token')) {
         try {
           // Try to refresh the token
           const newToken = await refreshAuthToken();
@@ -96,7 +101,12 @@ const apiClient = {
 
       // Handle other errors
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw {
+          status: response.status,
+          message: errorData.detail || `API error: ${response.status}`,
+          data: errorData
+        };
       }
 
       // Return the data
@@ -112,7 +122,11 @@ const apiClient = {
   },
 
   // Convenience methods
-  get: (endpoint) => apiClient.request(endpoint, { method: "GET" }),
+  get: (endpoint, params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    const url = query ? `${endpoint}?${query}` : endpoint;
+    return apiClient.request(url, { method: "GET" });
+  },
 
   post: (endpoint, data) =>
     apiClient.request(endpoint, {
