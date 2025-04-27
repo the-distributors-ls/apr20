@@ -210,3 +210,31 @@
   background-color: #28a745;
   color: white;
 }
+/* Add to your CSS */
+.sidebar-toggle {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  margin-right: 1rem;
+}
+
+.collapsed-sidebar .sidebar {
+  width: 60px; /* Collapsed width */
+}
+
+.collapsed-sidebar .sidebar .nav-text {
+  display: none;
+}
+
+.collapse-button {
+  position: absolute;
+  right: -15px;
+  top: 20px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  cursor: pointer;
+}

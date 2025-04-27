@@ -13,11 +13,19 @@ import UserProfile from "../UserProfile/UserProfile";
 
 const UserDashboard = () => {
   const navigate = useNavigate();
+  const [userData, setUserData] = useState({
+    name: "loading",
+    mfi: "loading",
+    loans: [],
+    mfiMemberships: []
+  });
 
   const [loanApplications, setLoanApplications] = useState([]);
   const [loanLoading, setLoanLoading] = useState(false);
   const [loanError, setLoanError] = useState(null);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [userLoading, setUserLoading] = useState(true);
+  const [userError, setUserError] = useState(null);
 
   const [activeTab, setActiveTab] = useState("overview");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -40,34 +48,63 @@ const UserDashboard = () => {
     employment_status: "employed",
     monthly_income: "",
   });
-
-  // User data - in a real app, this would come from your API
-  const userData = {
-    name: "Thabo Molefi",
-    mfi: "Lesotho Rural MFI",
-    loans: [
-      {
-        id: "L-7890",
-        amount: 5000,
-        status: "Active",
-        nextPayment: "2024-04-15",
-        progress: 65,
-      },
-      {
-        id: "L-7821",
-        amount: 3000,
-        status: "Completed",
-        nextPayment: null,
-        progress: 100,
-      },
-    ],
-    mfiMemberships: [
-      { name: "Lesotho Rural MFI", joined: "2022-01-15", active: true },
-      { name: "Maseru Urban Credit", joined: "2023-06-01", active: false },
-    ],
-  };
-
+   
   const interestRates = { 6: 12.5, 12: 14.0, 18: 15.5, 24: 17.0 };
+
+  // Fetch user data with null checks
+  useEffect(() => {
+    const fetchUserData = async () => {
+      if (!isAuthenticated()) {
+        navigate("/login");
+        return;
+      }
+
+      try {
+        setUserLoading(true);
+        const currentUser = getCurrentUser();
+        
+        if (!currentUser) {
+          throw new Error("No user data available");
+        }
+
+        const profileResponse = await apiClient.get("users/profile/");
+        
+        // Ensure we always have valid user data
+        setUserData({
+          name: `${currentUser.first_name || ""} ${currentUser.last_name || ""}`.trim() || "User",
+          mfi: profileResponse.mfi?.name || "No MFI",
+          loans: [],
+          mfiMemberships: profileResponse.mfi ? [{
+            name: profileResponse.mfi.name,
+            joined: new Date().toISOString().split('T')[0],
+            active: true
+          }] : []
+        });
+
+      } catch (err) {
+        setUserError(err.message);
+        console.error("Failed to load user data:", err);
+        // Set safe defaults if API fails
+        setUserData({
+          name: "User",
+          mfi: "No MFI",
+          loans: [],
+          mfiMemberships: []
+        });
+      } finally {
+        setUserLoading(false);
+      }
+    };
+
+    fetchUserData();
+  }, [navigate]);
+
+  // Check authentication
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      navigate("/login");
+    }
+  }, [navigate]);
 
   // Check if user is authenticated
   useEffect(() => {
@@ -237,23 +274,39 @@ const UserDashboard = () => {
     }
   };
 
+  const toggleSidebar = () => {
+    setSidebarCollapsed(!sidebarCollapsed);
+  };
+
+  // Render loading state if needed
+  if (userLoading) {
+    return <div className="loading-spinner">Loading user data...</div>;
+  }
+
+  // Render error state if needed
+  if (userError) {
+    return (
+      <div className="error-message">
+        Error loading user data. Showing limited information.
+      </div>
+    );
+  }
+
   return (
-    <div
-      className={`dashboard-container ${
-        sidebarCollapsed ? "collapsed-sidebar" : ""
-      }`}
-    >
+    <div className={`dashboard-container ${sidebarCollapsed ? "collapsed-sidebar" : ""}`}>
       <Sidebar
         activeTab={activeTab}
         sidebarCollapsed={sidebarCollapsed}
         setActiveTab={setActiveTab}
-        setSidebarCollapsed={setSidebarCollapsed}
+        toggleSidebar={toggleSidebar}
       />
+      
       <main className="dashboard-main">
         <Header
           userData={userData}
           showUserMenu={showUserMenu}
           setShowUserMenu={setShowUserMenu}
+          toggleSidebar={toggleSidebar}
         />
         <div className="dashboard-content">
           {activeTab === "overview" && (
