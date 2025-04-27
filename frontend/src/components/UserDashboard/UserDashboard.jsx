@@ -108,6 +108,7 @@ const UserDashboard = () => {
       try {
         setLoading(true);
         const data = await apiClient.get("mfi/");
+        
         setMfis(data);
       } catch (err) {
         setError(err.message);

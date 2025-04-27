@@ -9,7 +9,9 @@ import {
   User,
   ChevronDown,
   ChevronUp,
+  LogOut,
 } from "lucide-react";
+import { clearAuthData } from "../../utils/authUtils"; // Import the clearAuthData function
 
 const SideBar = ({
   activeTab,
@@ -17,6 +19,14 @@ const SideBar = ({
   setActiveTab,
   setSidebarCollapsed,
 }) => {
+  const handleLogout = () => {
+    // Use the clearAuthData utility function to properly clear all auth data
+    clearAuthData();
+    
+    // Redirect to login page
+    window.location.href = "/login"; // or use router navigation if using React Router
+  };
+
   return (
     <aside className="dashboard-sidebar">
       <div className="sidebar-header">
@@ -48,6 +58,14 @@ const SideBar = ({
               </button>
             </li>
           ))}
+          
+          {/* Logout Button */}
+          <li className="logout-item">
+            <button onClick={handleLogout}>
+              <LogOut size={20} />
+              {!sidebarCollapsed && <span>Logout</span>}
+            </button>
+          </li>
         </ul>
       </nav>
     </aside>
