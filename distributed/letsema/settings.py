@@ -253,10 +253,11 @@ if missing_vars:
 CORS_ALLOW_ALL_ORIGINS = True  # For development only
 
 # For production, specify allowed origins:
-# CORS_ALLOWED_ORIGINS = [
-#     "http://localhost:5173",
-#     "https://yourdomain.com",
-# ]
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
 
 # Additional CORS settings if needed
 CORS_ALLOW_METHODS = [
@@ -278,4 +279,8 @@ CORS_ALLOW_HEADERS = [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
+]
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
 ]
