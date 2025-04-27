@@ -119,7 +119,7 @@ const filteredLoans = statusFilter === 'all'
     try {
       setJoinStatus(prev => ({ ...prev, [selectedMfi.id]: "joining" }));
       
-      const response = await fetch("http://127.0.0.1:8000/api/borrowers/", {
+      const response = await fetch("http://127.0.0.1:8000/api/users/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
