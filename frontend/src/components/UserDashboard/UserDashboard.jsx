@@ -8,11 +8,10 @@ import LoanApplicationForm from "../LoanApplicationForm/LoanApplicationForm";
 import "./UserDashboard.css";
 
 const UserDashboard = () => {
-
   const [loanApplications, setLoanApplications] = useState([]);
   const [loanLoading, setLoanLoading] = useState(false);
   const [loanError, setLoanError] = useState(null);
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState("all");
 
   const [activeTab, setActiveTab] = useState("overview");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -62,34 +61,60 @@ const UserDashboard = () => {
     ],
   };
 
+  // Fetch loan applications
   useEffect(() => {
-  const fetchLoanApplications = async () => {
-    try {
-      setLoanLoading(true);
-      const response = await fetch("http://127.0.0.1:8000/api/loans/", {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-        }
-      });
-      if (!response.ok) throw new Error("Failed to fetch loans");
-      const data = await response.json();
-      setLoanApplications(data);
-    } catch (err) {
-      setLoanError(err.message);
-    } finally {
-      setLoanLoading(false);
+    const fetchLoanApplications = async () => {
+      try {
+        setLoanLoading(true);
+        const response = await fetch("http://127.0.0.1:8000/api/loans/", {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+          },
+        });
+        if (!response.ok) throw new Error("Failed to fetch loans");
+        const data = await response.json();
+        setLoanApplications(data);
+      } catch (err) {
+        setLoanError(err.message);
+      } finally {
+        setLoanLoading(false);
+      }
+    };
+
+    if (activeTab === "loans") {
+      fetchLoanApplications();
     }
-  };
+  }, [activeTab, statusFilter]);
 
-  if (activeTab === "loans") {
-    fetchLoanApplications();
-  }
-}, [activeTab, statusFilter]);
+  // Fetch MFIs
+  useEffect(() => {
+    const fetchMfis = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch("http://127.0.0.1:8000/api/mfi/", {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+          },
+        });
+        if (!response.ok) throw new Error("Failed to fetch MFIs");
+        const data = await response.json();
+        setMfis(data);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-// Add this filtered loans calculation
-const filteredLoans = statusFilter === 'all' 
-  ? loanApplications 
-  : loanApplications.filter(loan => loan.status === statusFilter);
+    if (activeTab === "mfi") {
+      fetchMfis();
+    }
+  }, [activeTab]);
+
+  const filteredLoans =
+    statusFilter === "all"
+      ? loanApplications
+      : loanApplications.filter((loan) => loan.status === statusFilter);
 
   const calculateMonthlyPayment = () => {
     const principal = loanAmount;
@@ -117,16 +142,17 @@ const filteredLoans = statusFilter === 'all'
   const handleJoinSubmit = async (e) => {
     e.preventDefault();
     try {
-      setJoinStatus(prev => ({ ...prev, [selectedMfi.id]: "joining" }));
-      
+      setJoinStatus((prev) => ({ ...prev, [selectedMfi.id]: "joining" }));
+
       const response = await fetch("http://127.0.0.1:8000/api/borrowers/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
         },
         body: JSON.stringify({
           ...borrowerData,
-          mfi: selectedMfi.id
+          mfi: selectedMfi.id,
         }),
       });
 
@@ -134,18 +160,17 @@ const filteredLoans = statusFilter === 'all'
         throw new Error("Failed to join MFI");
       }
 
-      setJoinStatus(prev => ({ ...prev, [selectedMfi.id]: "success" }));
+      setJoinStatus((prev) => ({ ...prev, [selectedMfi.id]: "success" }));
       setShowJoinForm(false);
-      
+
       // Update user's MFI memberships
       userData.mfiMemberships.push({
         name: selectedMfi.name,
-        joined: new Date().toISOString().split('T')[0],
-        active: true
+        joined: new Date().toISOString().split("T")[0],
+        active: true,
       });
-      
     } catch (err) {
-      setJoinStatus(prev => ({ ...prev, [selectedMfi.id]: "error" }));
+      setJoinStatus((prev) => ({ ...prev, [selectedMfi.id]: "error" }));
       console.error("Error joining MFI:", err);
     }
   };
@@ -160,7 +185,7 @@ const filteredLoans = statusFilter === 'all'
 
   const renderJoinButton = (mfi) => {
     const status = joinStatus[mfi.id];
-    const isMember = userData.mfiMemberships.some(m => m.name === mfi.name);
+    const isMember = userData.mfiMemberships.some((m) => m.name === mfi.name);
 
     if (isMember) {
       return (
@@ -185,7 +210,7 @@ const filteredLoans = statusFilter === 'all'
         );
       case "error":
         return (
-          <button 
+          <button
             className="btn btn-error"
             onClick={() => handleJoinClick(mfi)}
           >
@@ -194,7 +219,7 @@ const filteredLoans = statusFilter === 'all'
         );
       default:
         return (
-          <button 
+          <button
             className="btn btn-secondary"
             onClick={() => handleJoinClick(mfi)}
           >
@@ -238,8 +263,8 @@ const filteredLoans = statusFilter === 'all'
                 <h2>My Loan Applications</h2>
                 <div className="status-filter">
                   <label>Filter by status:</label>
-                  <select 
-                    value={statusFilter} 
+                  <select
+                    value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
                   >
                     <option value="all">All</option>
@@ -249,7 +274,7 @@ const filteredLoans = statusFilter === 'all'
                   </select>
                 </div>
               </div>
-              
+
               {loanLoading ? (
                 <div className="loading-spinner">Loading loans...</div>
               ) : loanError ? (
@@ -257,19 +282,35 @@ const filteredLoans = statusFilter === 'all'
               ) : (
                 <div className="loan-applications-grid">
                   {filteredLoans.length > 0 ? (
-                    filteredLoans.map(loan => (
-                      <div key={loan.id} className={`loan-card status-${loan.status.toLowerCase()}`}>
+                    filteredLoans.map((loan) => (
+                      <div
+                        key={loan.id}
+                        className={`loan-card status-${loan.status.toLowerCase()}`}
+                      >
                         <div className="loan-card-header">
                           <h3>Loan #{loan.id}</h3>
-                          <span className={`status-badge ${loan.status.toLowerCase()}`}>
+                          <span
+                            className={`status-badge ${loan.status.toLowerCase()}`}
+                          >
                             {loan.status}
                           </span>
                         </div>
                         <div className="loan-card-body">
-                          <p><strong>Amount:</strong> {loan.amount}</p>
-                          <p><strong>MFI:</strong> {loan.mfi.name}</p>
-                          <p><strong>Term:</strong> {loan.term_months} months</p>
-                          <p><strong>Applied:</strong> {new Date(loan.application_date).toLocaleDateString()}</p>
+                          <p>
+                            <strong>Amount:</strong> {loan.amount}
+                          </p>
+                          <p>
+                            <strong>MFI:</strong> {loan.mfi.name}
+                          </p>
+                          <p>
+                            <strong>Term:</strong> {loan.term_months} months
+                          </p>
+                          <p>
+                            <strong>Applied:</strong>{" "}
+                            {new Date(
+                              loan.application_date
+                            ).toLocaleDateString()}
+                          </p>
                         </div>
                       </div>
                     ))
@@ -407,7 +448,9 @@ const filteredLoans = statusFilter === 'all'
                                 required
                               >
                                 <option value="employed">Employed</option>
-                                <option value="self_employed">Self Employed</option>
+                                <option value="self_employed">
+                                  Self Employed
+                                </option>
                                 <option value="unemployed">Unemployed</option>
                               </select>
                             </div>
