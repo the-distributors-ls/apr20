@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import axios from "axios";
-import { useNavigate } from "react-router-dom";
+"use client"
+
+import { useState, useEffect } from "react"
+import { motion } from "framer-motion"
+import { useNavigate } from "react-router-dom"
 import {
   BarChart2,
   Users,
@@ -23,20 +24,22 @@ import {
   LogOut,
   ChevronDown,
   ChevronUp,
-} from "lucide-react";
-import "./Dashboard.css";
+} from "lucide-react"
+import "./Dashboard.css"
+import apiClient from "../../utils/apiClient"
 
 const Dashboard = () => {
-  const navigate = useNavigate();
-  const [userData, setUserData] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("overview");
-  const [period, setPeriod] = useState("monthly");
-  const [showUserMenu, setShowUserMenu] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [loansData, setLoansData] = useState([]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [filterStatus, setFilterStatus] = useState("all");
+  const navigate = useNavigate()
+  const [userData, setUserData] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState("overview")
+  const [period, setPeriod] = useState("monthly")
+  const [showUserMenu, setShowUserMenu] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [loansData, setLoansData] = useState([])
+  const [searchQuery, setSearchQuery] = useState("")
+  const [filterStatus, setFilterStatus] = useState("all")
+  const [loanApplications, setLoanApplications] = useState([])
 
   // Mock data for dashboard
   const dashboardData = {
@@ -196,8 +199,7 @@ const Dashboard = () => {
       {
         id: 4,
         type: "danger",
-        message:
-          "Potential fraud detected: multiple loan applications from same household",
+        message: "Potential fraud detected: multiple loan applications from same household",
         time: "2 days ago",
       },
     ],
@@ -213,89 +215,146 @@ const Dashboard = () => {
       late16to30: 4,
       defaulted: 2,
     },
-  };
+  }
 
   useEffect(() => {
-    // Check for auth token
-    const token =
-      localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
+    const token = localStorage.getItem("authToken") || sessionStorage.getItem("authToken")
 
-    /*if (!token) {
-      navigate("/login");
-      return;
-    }*/
-
-    // Fetch user data
     const fetchUserData = async () => {
       try {
-        const response = await axios.get(
-          "http://localhost:8000/api/auth/user/",
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
-        setUserData(response.data);
+        const response = await apiClient.get("auth/user/")
+        setUserData(response)
       } catch (error) {
-        console.error("Error fetching user data:", error);
-        // Redirect to login if unauthorized
-        if (error.response?.status === 401) {
-          localStorage.removeItem("authToken");
-          sessionStorage.removeItem("authToken");
-          navigate("/login");
-        }
-      } finally {
-        setIsLoading(false);
+        console.error("Error fetching user data:", error)
+        // Don't block everything if user data fails
       }
-    };
+    }
 
-    // In a real app, fetch actual loan data
-    // For this demo, we'll use the mock data after a timeout to simulate API call
-    setTimeout(() => {
-      setLoansData(dashboardData.recentLoans);
-      fetchUserData();
-    }, 1000);
-  }, [navigate]);
+    const fetchLoanApplications = async () => {
+      try {
+        const response = await apiClient.get("loans/")
+        const data = response
+        if (Array.isArray(data)) {
+          setLoanApplications(data)
+          setLoansData(data)
+        } else {
+          setLoanApplications([data])
+          setLoansData([data])
+        }
+      } catch (error) {
+        console.error("Error fetching loan applications:", error)
+      }
+    }
+
+    // Add a function to submit a new loan application
+    const submitLoanApplication = async (loanData) => {
+      try {
+        setIsLoading(true)
+        const response = await apiClient.post("loans/", loanData)
+        // Refresh the loan data after submission
+        await fetchLoanApplications()
+        setIsLoading(false)
+        return response
+      } catch (error) {
+        console.error("Error submitting loan application:", error)
+        setIsLoading(false)
+        throw error
+      }
+    }
+
+    // Add a function to refresh loans data
+    const refreshLoansData = async () => {
+      await fetchLoanApplications()
+    }
+
+    const loadDashboardData = async () => {
+      await fetchUserData() // Try to fetch user (even if it fails)
+      await fetchLoanApplications() // Always try to fetch loans
+      setIsLoading(false)
+    }
+
+    loadDashboardData()
+  }, [navigate])
 
   const handleLogout = () => {
-    localStorage.removeItem("authToken");
-    sessionStorage.removeItem("authToken");
-    navigate("/login");
-  };
+    localStorage.removeItem("authToken")
+    sessionStorage.removeItem("authToken")
+    navigate("/login")
+  }
 
   const filterLoans = (loans) => {
-    if (!loans) return [];
+    if (!loans || !Array.isArray(loans) || loans.length === 0) return []
 
     return loans.filter((loan) => {
-      const matchesSearch =
-        loan.borrower.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        loan.id.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesFilter =
-        filterStatus === "all" || loan.status === filterStatus;
+      // Check if borrower exists and has a username or first_name
+      const borrowerName = loan.borrower
+        ? loan.borrower.username || `${loan.borrower.first_name} ${loan.borrower.last_name}`
+        : loan.purpose || ""
 
-      return matchesSearch && matchesFilter;
-    });
-  };
+      const loanId = loan.id ? loan.id.toString() : ""
+      const externalId = loan.external_loan_id ? loan.external_loan_id.toString() : ""
+
+      const matchesSearch =
+        borrowerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        loanId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        externalId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        loan.purpose?.toLowerCase().includes(searchQuery.toLowerCase())
+
+      const matchesFilter =
+        filterStatus === "all" ||
+        loan.status === filterStatus ||
+        (filterStatus === "Active" && loan.status === "ACTIVE") ||
+        (filterStatus === "Overdue" && loan.status === "OVERDUE") ||
+        (filterStatus === "Completed" && loan.status === "REPAID") ||
+        (filterStatus === "Pending" && loan.status === "PENDING")
+
+      return matchesSearch && matchesFilter
+    })
+  }
 
   const getLoanStatusClass = (status) => {
     switch (status) {
       case "Active":
-        return "status-active";
+      case "ACTIVE":
+        return "status-active"
       case "Overdue":
-        return "status-overdue";
+      case "OVERDUE":
+        return "status-overdue"
       case "Completed":
-        return "status-completed";
+      case "REPAID":
+        return "status-completed"
       case "Pending":
-        return "status-pending";
+      case "PENDING":
+        return "status-pending"
       case "Approved":
-        return "status-approved";
+      case "APPROVED":
+        return "status-approved"
       case "Rejected":
-        return "status-rejected";
+      case "REJECTED":
+        return "status-rejected"
       case "Under Review":
-        return "status-review";
+      case "UNDER_REVIEW":
+        return "status-review"
       default:
-        return "";
+        return ""
     }
-  };
+  }
+
+  const refreshLoansData = async () => {
+    try {
+      const response = await apiClient.get("loans/")
+      const data = response
+      if (Array.isArray(data)) {
+        setLoanApplications(data)
+        setLoansData(data)
+      } else {
+        setLoanApplications([data])
+        setLoansData([data])
+      }
+    } catch (error) {
+      console.error("Error fetching loan applications:", error)
+    }
+  }
 
   if (isLoading) {
     return (
@@ -303,32 +362,17 @@ const Dashboard = () => {
         <div className="spinner"></div>
         <p>Loading dashboard...</p>
       </div>
-    );
+    )
   }
 
   return (
-    <div
-      className={`dashboard-container ${
-        sidebarCollapsed ? "collapsed-sidebar" : ""
-      }`}
-    >
+    <div className={`dashboard-container ${sidebarCollapsed ? "collapsed-sidebar" : ""}`}>
       {/* Sidebar */}
       <aside className="dashboard-sidebar">
         <div className="sidebar-header">
-          {sidebarCollapsed ? (
-            <div className="logo-icon">L</div>
-          ) : (
-            <h1 className="logo">Letsema</h1>
-          )}
-          <button
-            className="collapse-btn"
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          >
-            {sidebarCollapsed ? (
-              <ChevronRight size={20} />
-            ) : (
-              <ChevronLeft size={20} />
-            )}
+          {sidebarCollapsed ? <div className="logo-icon">L</div> : <h1 className="logo">Letsema</h1>}
+          <button className="collapse-btn" onClick={() => setSidebarCollapsed(!sidebarCollapsed)}>
+            {sidebarCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
           </button>
         </div>
 
@@ -392,25 +436,16 @@ const Dashboard = () => {
           <div className="header-actions">
             <button className="notification-btn">
               <AlertTriangle size={20} />
-              <span className="notification-count">
-                {dashboardData.alerts.length}
-              </span>
+              <span className="notification-count">{dashboardData.alerts.length}</span>
             </button>
 
-            <div
-              className="user-profile"
-              onClick={() => setShowUserMenu(!showUserMenu)}
-            >
+            <div className="user-profile" onClick={() => setShowUserMenu(!showUserMenu)}>
               <div className="avatar">{userData?.name?.charAt(0) || "U"}</div>
               <div className="user-info">
                 <p>{userData?.name || "MFI Admin"}</p>
                 <span>{userData?.institution || "Lesotho MFI"}</span>
               </div>
-              {showUserMenu ? (
-                <ChevronUp size={20} />
-              ) : (
-                <ChevronDown size={20} />
-              )}
+              {showUserMenu ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
 
               {showUserMenu && (
                 <div className="user-menu">
@@ -455,13 +490,8 @@ const Dashboard = () => {
                   </div>
                   <div className="stat-content">
                     <h3>Active Loans</h3>
-                    <p className="stat-value">
-                      {dashboardData.stats.activeLoans}
-                    </p>
-                    <p className="stat-desc">
-                      Total: M
-                      {dashboardData.stats.disbursedAmount.toLocaleString()}
-                    </p>
+                    <p className="stat-value">{dashboardData.stats.activeLoans}</p>
+                    <p className="stat-desc">Total: M{dashboardData.stats.disbursedAmount.toLocaleString()}</p>
                   </div>
                 </motion.div>
 
@@ -476,12 +506,8 @@ const Dashboard = () => {
                   </div>
                   <div className="stat-content">
                     <h3>Total Borrowers</h3>
-                    <p className="stat-value">
-                      {dashboardData.stats.totalBorrowers}
-                    </p>
-                    <p className="stat-desc">
-                      Avg. Loan: M{dashboardData.stats.averageLoanAmount}
-                    </p>
+                    <p className="stat-value">{dashboardData.stats.totalBorrowers}</p>
+                    <p className="stat-desc">Avg. Loan: M{dashboardData.stats.averageLoanAmount}</p>
                   </div>
                 </motion.div>
 
@@ -496,9 +522,7 @@ const Dashboard = () => {
                   </div>
                   <div className="stat-content">
                     <h3>Pending Applications</h3>
-                    <p className="stat-value">
-                      {dashboardData.stats.pendingApplications}
-                    </p>
+                    <p className="stat-value">{dashboardData.stats.pendingApplications}</p>
                     <p className="stat-desc">Waiting for approval</p>
                   </div>
                 </motion.div>
@@ -514,9 +538,7 @@ const Dashboard = () => {
                   </div>
                   <div className="stat-content">
                     <h3>Default Rate</h3>
-                    <p className="stat-value">
-                      {dashboardData.stats.defaultRate}%
-                    </p>
+                    <p className="stat-value">{dashboardData.stats.defaultRate}%</p>
                     <p className="stat-desc">Last month: 6.1%</p>
                   </div>
                 </motion.div>
@@ -529,10 +551,7 @@ const Dashboard = () => {
                     <h3>Loan Performance</h3>
                     <div className="chart-actions">
                       <div className="period-selector">
-                        <button
-                          className={period === "monthly" ? "active" : ""}
-                          onClick={() => setPeriod("monthly")}
-                        >
+                        <button className={period === "monthly" ? "active" : ""} onClick={() => setPeriod("monthly")}>
                           Monthly
                         </button>
                         <button
@@ -553,81 +572,65 @@ const Dashboard = () => {
                     <div className="chart-placeholder">
                       {period === "monthly" ? (
                         <div className="bar-chart">
-                          {dashboardData.loanPerformance.monthly.map(
-                            (data, index) => (
-                              <div className="chart-month" key={index}>
-                                <div className="bar-group">
-                                  <div
-                                    className="bar disbursed"
-                                    style={{
-                                      height: `${
-                                        (data.disbursed / 110000) * 100
-                                      }%`,
-                                    }}
-                                    title={`Disbursed: M${data.disbursed.toLocaleString()}`}
-                                  ></div>
-                                  <div
-                                    className="bar repaid"
-                                    style={{
-                                      height: `${
-                                        (data.repaid / 110000) * 100
-                                      }%`,
-                                    }}
-                                    title={`Repaid: M${data.repaid.toLocaleString()}`}
-                                  ></div>
-                                  <div
-                                    className="bar defaulted"
-                                    style={{
-                                      height: `${
-                                        (data.defaulted / 110000) * 100
-                                      }%`,
-                                    }}
-                                    title={`Defaulted: M${data.defaulted.toLocaleString()}`}
-                                  ></div>
-                                </div>
-                                <div className="bar-label">{data.month}</div>
+                          {dashboardData.loanPerformance.monthly.map((data, index) => (
+                            <div className="chart-month" key={index}>
+                              <div className="bar-group">
+                                <div
+                                  className="bar disbursed"
+                                  style={{
+                                    height: `${(data.disbursed / 110000) * 100}%`,
+                                  }}
+                                  title={`Disbursed: M${data.disbursed.toLocaleString()}`}
+                                ></div>
+                                <div
+                                  className="bar repaid"
+                                  style={{
+                                    height: `${(data.repaid / 110000) * 100}%`,
+                                  }}
+                                  title={`Repaid: M${data.repaid.toLocaleString()}`}
+                                ></div>
+                                <div
+                                  className="bar defaulted"
+                                  style={{
+                                    height: `${(data.defaulted / 110000) * 100}%`,
+                                  }}
+                                  title={`Defaulted: M${data.defaulted.toLocaleString()}`}
+                                ></div>
                               </div>
-                            )
-                          )}
+                              <div className="bar-label">{data.month}</div>
+                            </div>
+                          ))}
                         </div>
                       ) : (
                         <div className="bar-chart">
-                          {dashboardData.loanPerformance.quarterly.map(
-                            (data, index) => (
-                              <div className="chart-quarter" key={index}>
-                                <div className="bar-group">
-                                  <div
-                                    className="bar disbursed"
-                                    style={{
-                                      height: `${
-                                        (data.disbursed / 330000) * 100
-                                      }%`,
-                                    }}
-                                    title={`Disbursed: M${data.disbursed.toLocaleString()}`}
-                                  ></div>
-                                  <div
-                                    className="bar repaid"
-                                    style={{
-                                      height: `${
-                                        (data.repaid / 330000) * 100
-                                      }%`,
-                                    }}
-                                    title={`Repaid: M${data.repaid.toLocaleString()}`}
-                                  ></div>
-                                  <div
-                                    className="bar defaulted"
-                                    style={{
-                                      height: `${
-                                        (data.defaulted / 330000) * 100
-                                      }%`,
-                                    }}
-                                    title={`Defaulted: M${data.defaulted.toLocaleString()}`}
-                                  ></div>
-                                </div>
-                                <div className="bar-label">{data.quarter}</div>
+                          {dashboardData.loanPerformance.quarterly.map((data, index) => (
+                            <div className="chart-quarter" key={index}>
+                              <div className="bar-group">
+                                <div
+                                  className="bar disbursed"
+                                  style={{
+                                    height: `${(data.disbursed / 330000) * 100}%`,
+                                  }}
+                                  title={`Disbursed: M${data.disbursed.toLocaleString()}`}
+                                ></div>
+                                <div
+                                  className="bar repaid"
+                                  style={{
+                                    height: `${(data.repaid / 330000) * 100}%`,
+                                  }}
+                                  title={`Repaid: M${data.repaid.toLocaleString()}`}
+                                ></div>
+                                <div
+                                  className="bar defaulted"
+                                  style={{
+                                    height: `${(data.defaulted / 330000) * 100}%`,
+                                  }}
+                                  title={`Defaulted: M${data.defaulted.toLocaleString()}`}
+                                ></div>
                               </div>
-                            )
-                          )}
+                              <div className="bar-label">{data.quarter}</div>
+                            </div>
+                          ))}
                         </div>
                       )}
 
@@ -662,11 +665,13 @@ const Dashboard = () => {
                             backgroundColor: "#4CAF50",
                             clipPath: `inset(0 0 ${
                               100 -
-                              (dashboardData.creditScores.excellent /
-                                (dashboardData.creditScores.excellent +
-                                  dashboardData.creditScores.good +
-                                  dashboardData.creditScores.fair +
-                                  dashboardData.creditScores.poor)) *
+                              (
+                                dashboardData.creditScores.excellent /
+                                  (dashboardData.creditScores.excellent +
+                                    dashboardData.creditScores.good +
+                                    dashboardData.creditScores.fair +
+                                    dashboardData.creditScores.poor)
+                              ) *
                                 100
                             }% 0)`,
                           }}
@@ -679,11 +684,13 @@ const Dashboard = () => {
                             backgroundColor: "#8BC34A",
                             clipPath: `inset(0 0 ${
                               100 -
-                              (dashboardData.creditScores.good /
-                                (dashboardData.creditScores.excellent +
-                                  dashboardData.creditScores.good +
-                                  dashboardData.creditScores.fair +
-                                  dashboardData.creditScores.poor)) *
+                              (
+                                dashboardData.creditScores.good /
+                                  (dashboardData.creditScores.excellent +
+                                    dashboardData.creditScores.good +
+                                    dashboardData.creditScores.fair +
+                                    dashboardData.creditScores.poor)
+                              ) *
                                 100
                             }% 0)`,
                           }}
@@ -696,11 +703,13 @@ const Dashboard = () => {
                             backgroundColor: "#FFC107",
                             clipPath: `inset(0 0 ${
                               100 -
-                              (dashboardData.creditScores.fair /
-                                (dashboardData.creditScores.excellent +
-                                  dashboardData.creditScores.good +
-                                  dashboardData.creditScores.fair +
-                                  dashboardData.creditScores.poor)) *
+                              (
+                                dashboardData.creditScores.fair /
+                                  (dashboardData.creditScores.excellent +
+                                    dashboardData.creditScores.good +
+                                    dashboardData.creditScores.fair +
+                                    dashboardData.creditScores.poor)
+                              ) *
                                 100
                             }% 0)`,
                           }}
@@ -713,11 +722,13 @@ const Dashboard = () => {
                             backgroundColor: "#F44336",
                             clipPath: `inset(0 0 ${
                               100 -
-                              (dashboardData.creditScores.poor /
-                                (dashboardData.creditScores.excellent +
-                                  dashboardData.creditScores.good +
-                                  dashboardData.creditScores.fair +
-                                  dashboardData.creditScores.poor)) *
+                              (
+                                dashboardData.creditScores.poor /
+                                  (dashboardData.creditScores.excellent +
+                                    dashboardData.creditScores.good +
+                                    dashboardData.creditScores.fair +
+                                    dashboardData.creditScores.poor)
+                              ) *
                                 100
                             }% 0)`,
                           }}
@@ -725,33 +736,19 @@ const Dashboard = () => {
                       </div>
                       <div className="pie-legend">
                         <div className="legend-item">
-                          <span
-                            className="legend-color"
-                            style={{ backgroundColor: "#4CAF50" }}
-                          ></span>
-                          <span>
-                            Excellent ({dashboardData.creditScores.excellent})
-                          </span>
+                          <span className="legend-color" style={{ backgroundColor: "#4CAF50" }}></span>
+                          <span>Excellent ({dashboardData.creditScores.excellent})</span>
                         </div>
                         <div className="legend-item">
-                          <span
-                            className="legend-color"
-                            style={{ backgroundColor: "#8BC34A" }}
-                          ></span>
+                          <span className="legend-color" style={{ backgroundColor: "#8BC34A" }}></span>
                           <span>Good ({dashboardData.creditScores.good})</span>
                         </div>
                         <div className="legend-item">
-                          <span
-                            className="legend-color"
-                            style={{ backgroundColor: "#FFC107" }}
-                          ></span>
+                          <span className="legend-color" style={{ backgroundColor: "#FFC107" }}></span>
                           <span>Fair ({dashboardData.creditScores.fair})</span>
                         </div>
                         <div className="legend-item">
-                          <span
-                            className="legend-color"
-                            style={{ backgroundColor: "#F44336" }}
-                          ></span>
+                          <span className="legend-color" style={{ backgroundColor: "#F44336" }}></span>
                           <span>Poor ({dashboardData.creditScores.poor})</span>
                         </div>
                       </div>
@@ -772,27 +769,19 @@ const Dashboard = () => {
                       <div className="gauge-metrics">
                         <div className="gauge-metric">
                           <span className="metric-label">On Time</span>
-                          <span className="metric-value">
-                            {dashboardData.repaymentRates.onTime}%
-                          </span>
+                          <span className="metric-value">{dashboardData.repaymentRates.onTime}%</span>
                         </div>
                         <div className="gauge-metric">
                           <span className="metric-label">1-15 Days Late</span>
-                          <span className="metric-value">
-                            {dashboardData.repaymentRates.late1to15}%
-                          </span>
+                          <span className="metric-value">{dashboardData.repaymentRates.late1to15}%</span>
                         </div>
                         <div className="gauge-metric">
                           <span className="metric-label">16-30 Days Late</span>
-                          <span className="metric-value">
-                            {dashboardData.repaymentRates.late16to30}%
-                          </span>
+                          <span className="metric-value">{dashboardData.repaymentRates.late16to30}%</span>
                         </div>
                         <div className="gauge-metric">
                           <span className="metric-label">Defaulted</span>
-                          <span className="metric-value">
-                            {dashboardData.repaymentRates.defaulted}%
-                          </span>
+                          <span className="metric-value">{dashboardData.repaymentRates.defaulted}%</span>
                         </div>
                       </div>
                     </div>
@@ -828,23 +817,11 @@ const Dashboard = () => {
                           <td>{loan.borrower}</td>
                           <td>M{loan.amount.toLocaleString()}</td>
                           <td>
-                            <span
-                              className={`status-badge ${getLoanStatusClass(
-                                loan.status
-                              )}`}
-                            >
-                              {loan.status}
-                            </span>
+                            <span className={`status-badge ${getLoanStatusClass(loan.status)}`}>{loan.status}</span>
                           </td>
                           <td>{loan.date}</td>
                           <td>
-                            {loan.daysOverdue > 0 ? (
-                              <span className="overdue">
-                                {loan.daysOverdue} days
-                              </span>
-                            ) : (
-                              "None"
-                            )}
+                            {loan.daysOverdue > 0 ? <span className="overdue">{loan.daysOverdue} days</span> : "None"}
                           </td>
                         </tr>
                       ))}
@@ -864,13 +841,9 @@ const Dashboard = () => {
                     {dashboardData.alerts.map((alert, index) => (
                       <div className={`alert-item ${alert.type}`} key={index}>
                         <div className="alert-icon">
-                          {alert.type === "warning" && (
-                            <AlertTriangle size={20} />
-                          )}
+                          {alert.type === "warning" && <AlertTriangle size={20} />}
                           {alert.type === "info" && <RefreshCw size={20} />}
-                          {alert.type === "success" && (
-                            <CheckCircle size={20} />
-                          )}
+                          {alert.type === "success" && <CheckCircle size={20} />}
                           {alert.type === "danger" && <XCircle size={20} />}
                         </div>
                         <div className="alert-content">
@@ -893,8 +866,13 @@ const Dashboard = () => {
               transition={{ duration: 0.3 }}
             >
               <div className="page-title">
-                <h2>Loan Management</h2>
-                <p>View and manage all active and past loans.</p>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h2>Loan Management</h2>
+                    <p>View and manage all active and past loans.</p>
+                  </div>
+                  <CreateLoanButton onSuccess={refreshLoansData} />
+                </div>
               </div>
 
               <div className="loans-filters">
@@ -902,7 +880,7 @@ const Dashboard = () => {
                   <Search size={18} />
                   <input
                     type="text"
-                    placeholder="Search by borrower name or loan ID"
+                    placeholder="Search by borrower name, loan ID or purpose"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
@@ -918,6 +896,7 @@ const Dashboard = () => {
                     <option value="Active">Active</option>
                     <option value="Overdue">Overdue</option>
                     <option value="Completed">Completed</option>
+                    <option value="Pending">Pending</option>
                   </select>
 
                   <button className="filter-button">
@@ -938,46 +917,46 @@ const Dashboard = () => {
                     <tr>
                       <th>Loan ID</th>
                       <th>Borrower</th>
+                      <th>Purpose</th>
                       <th>Amount</th>
                       <th>Status</th>
-                      <th>Disbursement Date</th>
-                      <th>Days Overdue</th>
+                      <th>Application Date</th>
+                      <th>Term (Months)</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filterLoans(loansData).map((loan, index) => (
-                      <tr key={index}>
-                        <td>{loan.id}</td>
-                        <td>{loan.borrower}</td>
-                        <td>M{loan.amount.toLocaleString()}</td>
-                        <td>
-                          <span
-                            className={`status-badge ${getLoanStatusClass(
-                              loan.status
-                            )}`}
-                          >
-                            {loan.status}
-                          </span>
-                        </td>
-                        <td>{loan.date}</td>
-                        <td>
-                          {loan.daysOverdue > 0 ? (
-                            <span className="overdue">
-                              {loan.daysOverdue} days
-                            </span>
-                          ) : (
-                            "None"
-                          )}
-                        </td>
-                        <td>
-                          <div className="action-buttons">
-                            <button className="view-btn">View</button>
-                            <button className="edit-btn">Edit</button>
-                          </div>
+                    {loansData.length === 0 ? (
+                      <tr>
+                        <td colSpan="8" style={{ textAlign: "center" }}>
+                          No loans found.
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      filterLoans(loansData).map((loan, index) => (
+                        <tr key={loan.id || index}>
+                          <td>{loan.external_loan_id || loan.id}</td>
+                          <td>
+                            {loan.borrower ? `${loan.borrower.first_name} ${loan.borrower.last_name}` : "Unknown"}
+                          </td>
+                          <td>{loan.purpose}</td>
+                          <td>M{Number(loan.amount).toLocaleString()}</td>
+                          <td>
+                            <span className={`status-badge ${getLoanStatusClass(loan.status)}`}>{loan.status}</span>
+                          </td>
+                          <td>
+                            {loan.application_date ? new Date(loan.application_date).toLocaleDateString() : "N/A"}
+                          </td>
+                          <td>{loan.term_months}</td>
+                          <td>
+                            <div className="action-buttons">
+                              <button className="view-btn">View</button>
+                              <button className="edit-btn">Edit</button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1002,59 +981,47 @@ const Dashboard = () => {
                     <tr>
                       <th>Application ID</th>
                       <th>Borrower</th>
+                      <th>Purpose</th>
                       <th>Amount Requested</th>
                       <th>Status</th>
                       <th>Date</th>
-                      <th>Credit Score</th>
+                      <th>Term (Months)</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {dashboardData.loanApplications.map((app, index) => (
-                      <tr key={index}>
-                        <td>{app.id}</td>
-                        <td>{app.borrower}</td>
-                        <td>M{app.amount.toLocaleString()}</td>
-                        <td>
-                          <span
-                            className={`status-badge ${getLoanStatusClass(
-                              app.status
-                            )}`}
-                          >
-                            {app.status}
-                          </span>
-                        </td>
-                        <td>{app.date}</td>
-                        <td>
-                          <div className="credit-score">
-                            <div
-                              className="score-bar"
-                              style={{
-                                width: `${app.creditScore}%`,
-                                backgroundColor:
-                                  app.creditScore > 70
-                                    ? "#4CAF50"
-                                    : app.creditScore > 60
-                                    ? "#FFC107"
-                                    : "#F44336",
-                              }}
-                            ></div>
-                            <span>{app.creditScore}</span>
-                          </div>
-                        </td>
-                        <td>
-                          <div className="action-buttons">
-                            <button className="review-btn">Review</button>
-                            {app.status === "Pending" && (
-                              <>
-                                <button className="approve-btn">Approve</button>
-                                <button className="reject-btn">Reject</button>
-                              </>
-                            )}
-                          </div>
+                    {loanApplications.length === 0 ? (
+                      <tr>
+                        <td colSpan="8" style={{ textAlign: "center" }}>
+                          No loan applications found.
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      loanApplications.map((app, index) => (
+                        <tr key={app.id || index}>
+                          <td>{app.external_loan_id || app.id}</td>
+                          <td>{app.borrower ? `${app.borrower.first_name} ${app.borrower.last_name}` : "Unknown"}</td>
+                          <td>{app.purpose}</td>
+                          <td>M{Number(app.amount).toLocaleString()}</td>
+                          <td>
+                            <span className={`status-badge ${getLoanStatusClass(app.status)}`}>{app.status}</span>
+                          </td>
+                          <td>{app.application_date ? new Date(app.application_date).toLocaleDateString() : "N/A"}</td>
+                          <td>{app.term_months}</td>
+                          <td>
+                            <div className="action-buttons">
+                              <button className="review-btn">Review</button>
+                              {app.status === "PENDING" && (
+                                <>
+                                  <ApproveLoanButton loanId={app.id} onSuccess={refreshLoansData} />
+                                  <RejectLoanButton loanId={app.id} onSuccess={refreshLoansData} />
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1078,9 +1045,7 @@ const Dashboard = () => {
                   <Users size={48} />
                 </div>
                 <h3>Borrower Management Coming Soon</h3>
-                <p>
-                  This feature is currently under development. Check back later.
-                </p>
+                <p>This feature is currently under development. Check back later.</p>
               </div>
             </motion.div>
           )}
@@ -1103,10 +1068,7 @@ const Dashboard = () => {
                     <TrendingUp size={32} />
                   </div>
                   <h3>Monthly Performance</h3>
-                  <p>
-                    View detailed performance metrics for loan repayments and
-                    defaults.
-                  </p>
+                  <p>View detailed performance metrics for loan repayments and defaults.</p>
                   <div className="report-actions">
                     <button className="view-report">View Report</button>
                     <button className="download-report">
@@ -1120,10 +1082,7 @@ const Dashboard = () => {
                     <Users size={32} />
                   </div>
                   <h3>Borrower Demographics</h3>
-                  <p>
-                    Analyze borrower data by location, age, income, and loan
-                    history.
-                  </p>
+                  <p>Analyze borrower data by location, age, income, and loan history.</p>
                   <div className="report-actions">
                     <button className="view-report">View Report</button>
                     <button className="download-report">
@@ -1165,7 +1124,59 @@ const Dashboard = () => {
         </div>
       </main>
     </div>
-  );
-};
+  )
+}
 
-export default Dashboard;
+// Define the CreateLoanButton component
+const CreateLoanButton = ({ onSuccess }) => {
+  // Implementation for creating a new loan
+  return (
+    <button
+      className="create-loan-btn"
+      onClick={() => {
+        // Open loan creation form or modal
+        console.log("Create loan clicked")
+      }}
+    >
+      Create Loan
+    </button>
+  )
+}
+
+// Define the ApproveLoanButton component
+const ApproveLoanButton = ({ loanId, onSuccess }) => {
+  const handleApprove = async () => {
+    try {
+      await apiClient.post(`loans/${loanId}/approve/`)
+      onSuccess()
+    } catch (error) {
+      console.error("Error approving loan:", error)
+    }
+  }
+
+  return (
+    <button className="approve-btn" onClick={handleApprove}>
+      Approve
+    </button>
+  )
+}
+
+// Define the RejectLoanButton component
+const RejectLoanButton = ({ loanId, onSuccess }) => {
+  const handleReject = async () => {
+    try {
+      await apiClient.post(`loans/${loanId}/reject/`)
+      onSuccess()
+    } catch (error) {
+      console.error("Error rejecting loan:", error)
+    }
+  }
+
+  return (
+    <button className="reject-btn" onClick={handleReject}>
+      Reject
+    </button>
+  )
+}
+
+export default Dashboard
