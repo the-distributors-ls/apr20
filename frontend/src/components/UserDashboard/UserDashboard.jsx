@@ -401,43 +401,52 @@ const UserDashboard = () => {
             </motion.div>
           )}
           {activeTab === "mfi" && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              <div className="mfi-management">
-                <h2>Available Microfinance Institutions</h2>
-                {loading ? (
-                  <div className="loading-spinner">Loading MFIs...</div>
-                ) : error ? (
-                  <div className="error-message">{error}</div>
-                ) : (
-                  <>
-                    <div className="mfi-grid">
-                      {mfis.map((mfi) => (
-                        <div key={mfi.id} className="mfi-card">
-                          <div className="mfi-card-header">
-                            <h3>{mfi.name}</h3>
-                            {renderMfiStatus(mfi.is_active)}
-                          </div>
-                          <div className="mfi-card-body">
-                            <div className="mfi-detail">
-                              <span className="detail-label">Location:</span>
-                              <span>{mfi.location}</span>
-                            </div>
-                            <div className="mfi-detail">
-                              <span className="detail-label">Contact:</span>
-                              <a href={`mailto:${mfi.contact_info}`}>
-                                {mfi.contact_info}
-                              </a>
-                            </div>
-                          </div>
-                          <div className="mfi-card-footer">
-                            <button className="btn btn-primary">
-                              View Details
-                            </button>
-                            {renderJoinButton(mfi)}
-                          </div>
-                        </div>
-                      ))}
+  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+    <div className="mfi-management">
+      <h2>Available Microfinance Institutions</h2>
+      {loading ? (
+        <div className="loading-spinner">Loading MFIs...</div>
+      ) : error ? (
+        <div className="error-message">{error}</div>
+      ) : (
+        <>
+          <div className="mfi-grid">
+            {mfis.map((mfi) => (
+              <div key={mfi.id} className="mfi-card">
+                <div className="mfi-card-header">
+                  <h3>{mfi.name}</h3>
+                  {renderMfiStatus(mfi.is_active)}
+                </div>
+                <div className="mfi-card-body">
+                  <div className="mfi-detail">
+                    <span className="detail-label">Location:</span>
+                    <span>
+                      {mfi.location || 'Not specified'}
+                    </span>
+                  </div>
+                  <div className="mfi-detail">
+                    <span className="detail-label">Contact:</span>
+                    <div className="contact-info">
+                      {mfi.contact_number && (
+                        <a href={`tel:${mfi.contact_number}`}>
+                          {mfi.contact_number}
+                        </a>
+                      )}
+                      {mfi.email && (
+                        <a href={`mailto:${mfi.email}`}>
+                          {mfi.email}
+                        </a>
+                      )}
+                      {(!mfi.contact_number && !mfi.email) && 'Not specified'}
                     </div>
+                  </div>
+                </div>
+                <div className="mfi-card-footer">
+                  {renderJoinButton(mfi)}
+                </div>
+              </div>
+            ))}
+          </div>
 
                     {showJoinForm && selectedMfi && (
                       <div className="join-form-overlay">
