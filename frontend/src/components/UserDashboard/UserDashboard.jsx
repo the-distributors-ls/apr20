@@ -9,6 +9,7 @@ import LoanApplicationForm from "../LoanApplicationForm/LoanApplicationForm";
 import "./UserDashboard.css";
 import apiClient from "../../utils/apiClient";
 import { isAuthenticated, getCurrentUser } from "../../utils/authUtils";
+import UserProfile from "../UserProfile/UserProfile";
 
 const UserDashboard = () => {
   const navigate = useNavigate();
@@ -107,6 +108,7 @@ const UserDashboard = () => {
       try {
         setLoading(true);
         const data = await apiClient.get("mfi/");
+        
         setMfis(data);
       } catch (err) {
         setError(err.message);
@@ -339,6 +341,11 @@ const UserDashboard = () => {
                 calculateMonthlyPayment={calculateMonthlyPayment}
                 interestRates={interestRates}
               />
+            </motion.div>
+          )}
+          {activeTab === "profile" && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+               <UserProfile />
             </motion.div>
           )}
           {activeTab === "mfi" && (

@@ -27,14 +27,35 @@
 
 .sidebar-nav {
   padding: 20px 0;
+  display: flex;
+  flex-direction: column;
+  height: calc(100% - 70px); /* Adjust based on your sidebar header height */
 }
 
 .sidebar-nav ul {
   list-style: none;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .sidebar-nav li {
   margin-bottom: 5px;
+}
+
+.sidebar-nav li.logout-item {
+  margin-top: auto; /* Push logout to bottom */
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 10px;
+  margin-top: 20px;
+}
+
+.sidebar-nav li.logout-item button {
+  color: #ff6b6b; /* Red color for logout */
+}
+
+.sidebar-nav li.logout-item button:hover {
+  background-color: rgba(255, 99, 99, 0.1); /* Light red hover */
 }
 
 .sidebar-nav button {
