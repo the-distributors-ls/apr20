@@ -7,8 +7,8 @@ import StatsGrid from "../StatsGrid/StatsGrid";
 import LoanTable from "../LoanTable/LoanTable";
 import LoanApplicationForm from "../LoanApplicationForm/LoanApplicationForm";
 import "./UserDashboard.css";
-import apiClient from "../../utils/apiClient";
-import { isAuthenticated, getCurrentUser } from "../../utils/authUtils";
+import apiClient from "../utils/apiClient";
+import { isAuthenticated, getCurrentUser } from "../utils/authUtils";
 
 const UserDashboard = () => {
   const navigate = useNavigate();

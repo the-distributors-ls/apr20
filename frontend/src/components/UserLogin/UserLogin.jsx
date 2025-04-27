@@ -1,11 +1,16 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import "./UserLogin.css";
 import NavBar from "../NavBar/NavBar";
+import {
+  storeAuthData,
+  clearAuthData,
+  isAuthenticated,
+} from "../../utils/authUtils";
 
-// OAuth provider icons (you'll need to add these to your project)
+// OAuth provider icons
 import GoogleIcon from "/src/assets/google-icon.svg";
 import FacebookIcon from "/src/assets/facebook-icon.svg";
 import MicrosoftIcon from "/src/assets/microsoft-icon.svg";
@@ -26,21 +31,26 @@ const UserLogin = () => {
 
   const navigate = useNavigate();
 
-  // Removed the automatic login useEffect hook
+  // Check if user is already logged in
+  useEffect(() => {
+    if (isAuthenticated()) {
+      navigate("/userdashboard");
+    }
+  }, [navigate]);
 
   const redirectBasedOnUserRole = (user) => {
-    switch(user.role) {
-      case 'BORROWER':
-        navigate('/userdashboard');
+    switch (user.role) {
+      case "BORROWER":
+        navigate("/userdashboard");
         break;
-      case 'MFI_EMPLOYEE':
-        navigate('/dashboard');
+      case "MFI_EMPLOYEE":
+        navigate("/dashboard");
         break;
-      case 'ADMIN':
-        navigate('/admin-dashboard');
+      case "ADMIN":
+        navigate("/admin-dashboard");
         break;
       default:
-        navigate('/dashboard');
+        navigate("/dashboard");
     }
   };
 
@@ -51,47 +61,44 @@ const UserLogin = () => {
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    
+
     try {
       // Clear any existing tokens first
-      localStorage.removeItem("authToken");
-      localStorage.removeItem("refreshToken");
-      sessionStorage.removeItem("authToken");
-      sessionStorage.removeItem("refreshToken");
-      sessionStorage.removeItem("user");
-      
+      clearAuthData();
+
       // Get JWT token
       const response = await axios.post(
-        `${API_BASE_URL}/auth/token/`,  // Updated to match main urls.py route
+        `${API_BASE_URL}/auth/token/`,
         formData
       );
-  
+
       const { access: token, refresh } = response.data;
-  
-      // Store tokens based on remember me preference
-      const storage = rememberMe ? localStorage : sessionStorage;
-      storage.setItem("authToken", token);
-      storage.setItem("refreshToken", refresh);
-  
+
       // Get user data with the token
       const userResponse = await axios.get(
         `${API_BASE_URL}/users/validate-token/`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-  
+
       const user = userResponse.data.user;
-      sessionStorage.setItem("user", JSON.stringify(user));
-      
+
+      // Store auth data using our utility function
+      storeAuthData(token, refresh, user, rememberMe);
+
       setMessageType("success");
       setMessage("Login successful! Redirecting...");
-      
+
       // Redirect based on role
       redirectBasedOnUserRole(user);
-  
     } catch (error) {
       console.error("Login error:", error);
       setMessageType("error");
-      setMessage("Login failed: " + (error.response?.data?.detail || error.message || "Invalid credentials"));
+      setMessage(
+        "Login failed: " +
+          (error.response?.data?.detail ||
+            error.message ||
+            "Invalid credentials")
+      );
     } finally {
       setIsLoading(false);
     }
@@ -126,17 +133,15 @@ const UserLogin = () => {
         if (event.origin !== window.location.origin) return;
 
         if (event.data.token) {
-          // Store token based on remember me preference
-          const storage = rememberMe ? localStorage : sessionStorage;
-          storage.setItem("authToken", event.data.token);
-          
-          if (event.data.refreshToken) {
-            storage.setItem("refreshToken", event.data.refreshToken);
-          }
+          // Store auth data using our utility function
+          storeAuthData(
+            event.data.token,
+            event.data.refreshToken,
+            event.data.user,
+            rememberMe
+          );
 
-          // Store user info
           if (event.data.user) {
-            sessionStorage.setItem("user", JSON.stringify(event.data.user));
             redirectBasedOnUserRole(event.data.user);
           }
 
