@@ -48,54 +48,55 @@ const UserLogin = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleLoginSubmit = async (e) => {
-    e.preventDefault();
-    setIsLoading(true);
+// Update the handleLoginSubmit function
+const handleLoginSubmit = async (e) => {
+  e.preventDefault();
+  setIsLoading(true);
+  
+  try {
+    // Clear existing tokens
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+
+    // Get JWT token
+    const response = await axios.post(
+      `${API_BASE_URL}/auth/token/`,
+      formData
+    );
+
+    const { access, refresh } = response.data;
     
-    try {
-      // Clear any existing tokens first
-      localStorage.removeItem("authToken");
-      localStorage.removeItem("refreshToken");
-      sessionStorage.removeItem("authToken");
-      sessionStorage.removeItem("refreshToken");
-      sessionStorage.removeItem("user");
-      
-      // Get JWT token
-      const response = await axios.post(
-        `${API_BASE_URL}/auth/token/`,  // Updated to match main urls.py route
-        formData
-      );
-  
-      const { access: token, refresh } = response.data;
-  
-      // Store tokens based on remember me preference
-      const storage = rememberMe ? localStorage : sessionStorage;
-      storage.setItem("authToken", token);
-      storage.setItem("refreshToken", refresh);
-  
-      // Get user data with the token
-      const userResponse = await axios.get(
-        `${API_BASE_URL}/users/validate-token/`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-  
-      const user = userResponse.data.user;
-      sessionStorage.setItem("user", JSON.stringify(user));
-      
-      setMessageType("success");
-      setMessage("Login successful! Redirecting...");
-      
-      // Redirect based on role
-      redirectBasedOnUserRole(user);
-  
-    } catch (error) {
-      console.error("Login error:", error);
-      setMessageType("error");
-      setMessage("Login failed: " + (error.response?.data?.detail || error.message || "Invalid credentials"));
-    } finally {
-      setIsLoading(false);
+    // Store tokens
+    localStorage.setItem("access_token", access);
+    localStorage.setItem("refresh_token", refresh);
+
+    // Get user data
+    const userResponse = await axios.get(
+      `${API_BASE_URL}/users/user/`,
+      { headers: { Authorization: `Bearer ${access}` } }
+    );
+
+    const user = userResponse.data;
+    localStorage.setItem("user", JSON.stringify(user));
+    
+    setMessageType("success");
+    setMessage("Login successful! Redirecting...");
+    
+    // Redirect based on role
+    if (user.role === 'BORROWER') {
+      navigate('/userdashboard');
+    } else {
+      navigate('/dashboard');
     }
-  };
+
+  } catch (error) {
+    console.error("Login error:", error);
+    setMessageType("error");
+    setMessage(error.response?.data?.detail || "Login failed");
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const handleOAuthLogin = (provider) => {
     setIsLoading(true);

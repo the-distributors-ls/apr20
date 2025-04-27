@@ -85,6 +85,29 @@ const UserDashboard = () => {
     fetchLoanApplications();
   }
 }, [activeTab, statusFilter]);
+useEffect(() => {
+  const fetchMfis = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch("http://127.0.0.1:8000/api/mfi/", {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+        },
+      });
+      if (!response.ok) throw new Error("Failed to fetch MFIs");
+      const data = await response.json();
+      setMfis(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (activeTab === "mfi") {
+    fetchMfis();
+  }
+}, [activeTab]);
 
 // Add this filtered loans calculation
 const filteredLoans = statusFilter === 'all' 
