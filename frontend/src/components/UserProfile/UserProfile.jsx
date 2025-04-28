@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import "../../components/UserDashboard/UserDashboard.css";
 import apiClient from "../../utils/apiClient";
 import { isAuthenticated } from "../../utils/authUtils";
+import "./UserProfile.css";
 
 const UserProfile = () => {
   const [isEditing, setIsEditing] = useState(false);
